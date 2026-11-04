@@ -154,7 +154,9 @@ ColumnLayout {
                 if (root.view === "installed")
                     return !PackagesService.loaded ? "Reading the database…" : "Nothing installed is called that."
                 if (term === "")
-                    return "Type a name — the repositories and the AUR both answer."
+                    return PackagesService.manager === "dnf"
+                        ? "Type a name — the repositories answer."
+                        : "Type a name — the repositories and the AUR both answer."
                 if (term.length < 2)
                     return "Two letters at least."
                 if (PackagesService.searching || term !== PackagesService.foundTerm)
@@ -270,7 +272,7 @@ ColumnLayout {
                             // found it in, or the AUR, which is worth checking
                             // before installing.
                             Text {
-                                readonly property string label: row.aur ? "AUR"
+                                readonly property string label: row.aur ? PackagesService.foreignName
                                     : (root.view === "find" ? row.modelData.source : "")
                                 visible: label !== ""
                                 text: label
@@ -397,7 +399,7 @@ ColumnLayout {
             options: [
                 { id: "mine", label: `By you · ${PackagesService.mineCount}` },
                 { id: "all",  label: `All · ${PackagesService.installed.length}` },
-                { id: "aur",  label: `AUR · ${PackagesService.aurCount}` }
+                { id: "aur",  label: `${PackagesService.foreignName} · ${PackagesService.aurCount}` }
             ]
             onSelected: id => {
                 PackagesService.installedFilter = id
@@ -415,7 +417,8 @@ ColumnLayout {
                     // from it does not mean up to date.
                     const parts = [`${UpdatesService.count - aur} from the repositories`
                         + (UpdatesService.tool === "pacman" ? " as of the last sync" : "")]
-                    parts.push(UpdatesService.aur ? `${aur} from the AUR` : "the AUR did not answer")
+                    if (PackagesService.manager !== "dnf")
+                        parts.push(UpdatesService.aur ? `${aur} from the AUR` : "the AUR did not answer")
                     if (UpdatesService.checking)
                         parts.push("checking…")
                     else if (UpdatesService.age !== "")
@@ -425,10 +428,15 @@ ColumnLayout {
                 if (root.view === "installed")
                     return PackagesService.term !== ""
                         ? `${root.rows.length} of ${PackagesService.installed.length}` : ""
-                if (PackagesService.foundTerm === "" || PackagesService.foundNote === "short")
+                if (PackagesService.foundTerm === "" || PackagesService.foundNote === "short") {
+                    if (PackagesService.manager === "dnf")
+                        return "Installed with dnf, in a terminal"
                     return PackagesService.helper !== ""
                         ? `Installed with ${PackagesService.helper}, in a terminal`
                         : "No AUR helper — the repositories only"
+                }
+                if (PackagesService.manager === "dnf")
+                    return `${PackagesService.foundRepos} in the repositories`
                 const parts = [`${PackagesService.foundRepos} in the repositories`]
                 if (PackagesService.foundNote === "offline")
                     parts.push("the AUR did not answer")

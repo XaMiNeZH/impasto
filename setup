@@ -146,8 +146,8 @@ banner() {
     BANNERED=1
     printf '\n'
     mark
-    printf '\n  %sa desk for Arch Linux and Hyprland%s   %s%s%s\n\n' \
-        "$MUTED" "$OFF" "$FAINT" "$(version)" "$OFF"
+    printf '\n  %s%s%s   %s%s%s\n\n' \
+        "$MUTED" "$(desk_line)" "$OFF" "$FAINT" "$(version)" "$OFF"
 }
 
 usage() {
@@ -162,7 +162,8 @@ Usage: ./setup <command> [options]
   uninstall   remove every installed file that has not been edited since,
               and put back what was in the way when it was installed
 
-  packages    install what packages/pacman.txt and packages/aur.txt list
+  packages    install what this distro's package list names — pacman and
+              the AUR on Arch, dnf on Fedora
   sync        copy home/ into $HOME — how a change in the repository lands
   system      copy system/ into /, and switch the login screen on where no
               other display manager is (asks for a password)
@@ -388,7 +389,8 @@ tidy() {
         case $dir in
             .config|.local|.local/share|.local/state|.cache|etc|usr|usr/share|var|var/lib) return 0 ;;
         esac
-        if [[ -n $SUDO ]] && pacman -Qqo "$target/$dir" >/dev/null 2>&1; then return 0; fi
+        if [[ -n $SUDO ]] && command -v pacman >/dev/null && pacman -Qqo "$target/$dir" >/dev/null 2>&1; then return 0; fi
+        if [[ -n $SUDO ]] && command -v rpm >/dev/null && rpm -qf "$target/$dir" >/dev/null 2>&1; then return 0; fi
         act $SUDO rmdir "$target/$dir" 2>/dev/null || return 0
         dir=$(dirname "$dir")
     done
@@ -402,6 +404,8 @@ deploy() {
     read_manifest "$manifest"
     AFTER=()
     while IFS= read -r rel; do
+        # Arch keeps mkinitcpio and the GRUB drop-in; Fedora keeps dracut.
+        if distro_skips "$rel"; then continue; fi
         src=$REPO/$tree/$rel
         dst=$target/$rel
         if [[ $tree == home ]]; then unstow "$rel"; fi
@@ -705,6 +709,7 @@ verb_system() {
     act $SUDO install -d -m 755 "$ROOT/var/lib/impasto/faces"
     display_manager
     i2c_dev
+    fedora_selinux
     SUDO=
 }
 
@@ -720,6 +725,7 @@ i2c_dev() {
     else
         say 'skipped  i2c-dev could not be loaded; it loads with the next boot'
     fi
+    fedora_i2c_group
 }
 
 # The login screen needs a display manager to run it. sddm is enabled once,
@@ -768,6 +774,11 @@ names() { sed 's/#.*//' "$1" | tr -s ' \t' '\n' | sed '/^$/d'; }
 
 # `pacman -T` also counts providers, so e.g. fnm-bin satisfies fnm.
 verb_packages() {
+    case $DISTRO in
+        fedora) verb_packages_fedora; return ;;
+        arch) ;;
+        *) fail "impasto installs on Arch Linux and Fedora (this is ${DISTRO_ID:-unknown})" ;;
+    esac
     local -a yes=() want missing
     if (( NOCONFIRM )); then yes=(--noconfirm); fi
 
@@ -876,6 +887,7 @@ release_sudo() {
 
 verb_plugins() {
     section 'hyprland plugins'
+    fedora_plugin_deps
     if ! hyprctl version >/dev/null 2>&1; then
         if (( ! DRY )); then mkdir -p "$STATE"; printf '%s\n' "$REPO" > "$PLUGINS_PENDING"; fi
         say 'built by the first Hyprland session: a terminal asks for your password there'
@@ -1015,9 +1027,13 @@ verb_uninstall() {
     # and the initramfs and grub.cfg already built still carry it.
     if command -v plymouth-set-default-theme >/dev/null && [[ $(plymouth-set-default-theme) == impasto ]]; then
         act sudo plymouth-set-default-theme --reset
-        act sudo mkinitcpio -P >/dev/null || say 'the initramfs did not rebuild: sudo mkinitcpio -P'
-        if [[ -f /boot/grub/grub.cfg ]] && command -v grub-mkconfig >/dev/null; then
-            act sudo grub-mkconfig -o /boot/grub/grub.cfg >/dev/null 2>&1
+        if [[ $DISTRO == fedora ]]; then
+            fedora_uninstall_splash
+        else
+            act sudo mkinitcpio -P >/dev/null || say 'the initramfs did not rebuild: sudo mkinitcpio -P'
+            if [[ -f /boot/grub/grub.cfg ]] && command -v grub-mkconfig >/dev/null; then
+                act sudo grub-mkconfig -o /boot/grub/grub.cfg >/dev/null 2>&1
+            fi
         fi
         say 'removed  the boot splash · other boot loaders keep the splash argument, which does nothing now'
     fi
@@ -1277,10 +1293,18 @@ verb_face() {
     # Built without its test suite: one test races the compare process against
     # the password prompt and fails under a parallel build, and passes alone.
     if ! command -v howdy >/dev/null; then
-        aur_helper || refuse 'howdy-next needs an AUR helper' || return
-        act "$HELPER" -S --needed "${yes[@]}" --mflags --nocheck howdy-next \
-            || refuse 'howdy-next was not installed' || return
-        say 'installed howdy-next'
+        if [[ $DISTRO == fedora ]]; then
+            if dnf_available howdy; then
+                act sudo dnf install -y howdy || refuse 'howdy was not installed' || return
+            else
+                refuse 'howdy is not in the Fedora repositories — install it, then run ./setup face' || return
+            fi
+        else
+            aur_helper || refuse 'howdy-next needs an AUR helper' || return
+            act "$HELPER" -S --needed "${yes[@]}" --mflags --nocheck howdy-next \
+                || refuse 'howdy-next was not installed' || return
+            say 'installed howdy-next'
+        fi
     fi
     act sudo howdy download-models >/dev/null || refuse 'the recognition models did not download' || return
     # The notice is the lock screen's cue that the camera is on.
@@ -1340,15 +1364,21 @@ verb_camera() {
         fail 'no camera: the effects need a webcam'
     fi
     say "camera   $camera"
-    kernel=$(cat "/usr/lib/modules/$(uname -r)/pkgbase" 2>/dev/null) || kernel=linux
-    headers=$kernel-headers
-    act sudo pacman -S --needed "${yes[@]}" v4l2loopback-dkms "$headers" python-numpy python-opencv \
-        || refuse 'the virtual camera was not installed' || return
-    if ! python3 -c 'import mediapipe' 2>/dev/null; then
-        aur_helper || refuse 'MediaPipe needs an AUR helper' || return
-        act "$HELPER" -S --needed "${yes[@]}" python-mediapipe-bin \
-            || refuse 'MediaPipe was not installed' || return
-        say 'installed MediaPipe'
+    if [[ $DISTRO == fedora ]]; then
+        fedora_install_camera \
+            || refuse 'the virtual camera was not installed (v4l2loopback is in RPM Fusion, and MediaPipe may need pip)' \
+            || return
+    else
+        kernel=$(cat "/usr/lib/modules/$(uname -r)/pkgbase" 2>/dev/null) || kernel=linux
+        headers=$kernel-headers
+        act sudo pacman -S --needed "${yes[@]}" v4l2loopback-dkms "$headers" python-numpy python-opencv \
+            || refuse 'the virtual camera was not installed' || return
+        if ! python3 -c 'import mediapipe' 2>/dev/null; then
+            aur_helper || refuse 'MediaPipe needs an AUR helper' || return
+            act "$HELPER" -S --needed "${yes[@]}" python-mediapipe-bin \
+                || refuse 'MediaPipe was not installed' || return
+            say 'installed MediaPipe'
+        fi
     fi
     # exclusive_caps: listed as a camera only while something writes to it,
     # which camera.py does from the moment the shell starts it.
@@ -1389,10 +1419,13 @@ splash_argument() {
     return 0
 }
 
-# The boot splash: the theme and the initramfs drop-in are in system/, and
-# GRUB's `splash` is too; this names the theme, gives every other boot loader
-# the argument, and rebuilds the initramfs, which takes a minute.
+# The boot splash: the theme and the initramfs drop-in are in system/.
+# Arch rebuilds with mkinitcpio; Fedora rebuilds with dracut.
 verb_splash() {
+    if [[ $DISTRO == fedora ]]; then verb_splash_fedora; else verb_splash_arch; fi
+}
+
+verb_splash_arch() {
     section 'boot splash'
     [[ -z $ROOT ]] || refuse 'the boot splash is set up on the machine itself, not in a chroot' || return
     command -v plymouth-set-default-theme >/dev/null || refuse 'plymouth is not installed (package: plymouth)' || return
@@ -1476,6 +1509,9 @@ verb_check() {
 
     section bash
     bash -n setup
+    bash -n lib/fedora.sh
+    bash -n lib/awww
+    bash -n lib/awww-daemon
     say 'syntax ok'
 
     # Plain JSON only (the one .jsonc file is fastfetch's). A typo in the
@@ -1631,7 +1667,12 @@ parts() {
         for i in "${!PARTS[@]}"; do
             name=${PARTS[i]#*:}
             case ${PARTS[i]%%:*} in
-                packages) note="$pacman from the repositories, $aur from the AUR" ;;
+                packages)
+                    if [[ $DISTRO == fedora ]]; then
+                        note="$(manifest_names "$REPO/packages/dnf.txt" required | wc -l) from the Fedora repositories"
+                    else
+                        note="$pacman from the repositories, $aur from the AUR"
+                    fi ;;
                 system)   note='sddm, unless this machine already has one' ;;
                 plugins)  note='shake to find · glass on the windows' ;;
                 extras)   note='Nautilus, VSCodium, Vesktop, Spotify, GTK, your face, the camera, the boot splash' ;;
@@ -1645,17 +1686,26 @@ parts() {
             line "  $(here "$i" "$at") $box  $label$FAINT$note$OFF"
         done
         line ''
-        if (( helper == 0 )); then
-            pick="$ACCENT‹ yay ›$OFF   ${FAINT}paru$OFF"
+        if [[ $DISTRO == fedora ]]; then
+            if (( at == 4 )); then
+                label="$TEXT$BOLD$(printf '%-18s' 'the AUR helper')$OFF"
+            else
+                label="$MUTED$(printf '%-18s' 'the AUR helper')$OFF"
+            fi
+            line "  $(here 4 "$at")    $label${FAINT}not used on Fedora$OFF"
         else
-            pick="${FAINT}yay$OFF   $ACCENT‹ paru ›$OFF"
+            if (( helper == 0 )); then
+                pick="$ACCENT‹ yay ›$OFF   ${FAINT}paru$OFF"
+            else
+                pick="${FAINT}yay$OFF   $ACCENT‹ paru ›$OFF"
+            fi
+            if (( at == 4 )); then
+                label="$TEXT$BOLD$(printf '%-18s' 'the AUR helper')$OFF"
+            else
+                label="$MUTED$(printf '%-18s' 'the AUR helper')$OFF"
+            fi
+            line "  $(here 4 "$at")    $label$pick"
         fi
-        if (( at == 4 )); then
-            label="$TEXT$BOLD$(printf '%-18s' 'the AUR helper')$OFF"
-        else
-            label="$MUTED$(printf '%-18s' 'the AUR helper')$OFF"
-        fi
-        line "  $(here 4 "$at")    $label$pick"
         line ''
         hint '↑↓:move' 'space:toggle' 'enter:install' 'q:quit'
         k=$(key) || k=quit
@@ -1663,7 +1713,8 @@ parts() {
             up)    at=$(( at ? at - 1 : rows - 1 )) ;;
             down)  at=$(( (at + 1) % rows )) ;;
             left|right|space)
-                if (( at == 4 )); then helper=$(( 1 - helper ))
+                if (( at == 4 )); then
+                    if [[ $DISTRO != fedora ]]; then helper=$(( 1 - helper )); fi
                 elif [[ $k == space ]]; then on[at]=$(( 1 - on[at] )); fi ;;
             enter)
                 SKIP_PACKAGES=$(( 1 - on[0] ))
@@ -1738,6 +1789,9 @@ main() {
         esac
         shift
     done
+    # shellcheck source=lib/fedora.sh
+    source "$REPO/lib/fedora.sh"
+    read_distro
     if [[ -z $verb ]]; then interactive; exit 0; fi
     case $HELPER in
         ''|yay|paru) ;;

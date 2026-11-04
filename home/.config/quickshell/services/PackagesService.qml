@@ -57,6 +57,11 @@ Singleton {
     property bool loading: false
     property var installed: []
     property string helper: ""
+    // "pacman" on Arch, "dnf" on Fedora. Commands and the foreign-package
+    // label follow it. The scripts also report it; this is the fallback
+    // before the first read.
+    property string manager: "pacman"
+    readonly property string foreignName: root.manager === "dnf" ? "COPR" : "AUR"
 
     readonly property int mineCount: root.installed.filter(row => row.explicit).length
     readonly property int aurCount: root.installed.filter(row => row.aur).length
@@ -84,6 +89,8 @@ Singleton {
                     return
                 root.installed = report.packages ?? []
                 root.helper = report.helper ?? ""
+                if (report.manager === "dnf" || report.manager === "pacman")
+                    root.manager = report.manager
                 root.loaded = true
             }
         }
@@ -153,6 +160,8 @@ Singleton {
                 root.foundRepos = report.repos ?? 0
                 root.foundAur = report.aurCount ?? 0
                 root.foundNote = report.aur ?? ""
+                if (report.manager === "dnf" || report.manager === "pacman")
+                    root.manager = report.manager
             }
         }
     }
@@ -201,6 +210,10 @@ Singleton {
     function install(row: var): void {
         if (!row)
             return
+        if (root.manager === "dnf") {
+            root.open(["sudo", "dnf", "install", row.name])
+            return
+        }
         if (root.helper !== "")
             root.open([root.helper, "-S", row.name])
         else if (row.source !== "aur")
@@ -211,19 +224,30 @@ Singleton {
     // would otherwise keep as .pacsave. pacman refuses, with its reason, if
     // something still depends on the package.
     function remove(row: var): void {
-        if (row)
+        if (!row)
+            return
+        if (root.manager === "dnf")
+            root.open(["sudo", "dnf", "remove", row.name])
+        else
             root.open(["sudo", "pacman", "-Rns", row.name])
     }
 
     function upgrade(): void {
-        root.open(root.helper !== ""
-            ? [root.helper, "-Syu"]
-            : ["sudo", "pacman", "-Syu"])
+        if (root.manager === "dnf")
+            root.open(["sudo", "dnf", "upgrade"])
+        else
+            root.open(root.helper !== ""
+                ? [root.helper, "-Syu"]
+                : ["sudo", "pacman", "-Syu"])
     }
 
-    // AUR packages need a helper.
+    // AUR packages need a helper. Fedora installs from dnf directly.
     function installable(row: var): bool {
-        return !!row && !row.installed && (row.source !== "aur" || root.helper !== "")
+        if (!row || row.installed)
+            return false
+        if (root.manager === "dnf")
+            return true
+        return row.source !== "aur" || root.helper !== ""
     }
 
     // The command is passed as arguments, never interpolated into the

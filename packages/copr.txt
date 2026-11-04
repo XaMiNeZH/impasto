@@ -1,0 +1,21 @@
+# ╭──────────────────────────────────────────────────────────────────────────╮
+# │                                                                          │
+# │   C O P R                                                                │
+# │   extra Fedora repositories, tried only for what is still missing       │
+# │                                                                          │
+# │   github.com/andreumassanet/impasto                                      │
+# │                                                                          │
+# ╰──────────────────────────────────────────────────────────────────────────╯
+
+# · One repository per line: the COPR project, then the package names to
+# · ask it for. A line is skipped when every name is already installed.
+# · The repository is enabled only for the transaction, and disabled again
+# · when that transaction would downgrade qt6-qtbase or installs nothing.
+# · Hyprland is left untouched when a copy is already on the machine.
+
+nett00n/hyprland hyprland hyprland-devel xdg-desktop-portal-hyprland hyprpicker hyprsunset hyprcursor satty swww mpvpaper
+lionheartp/Hyprland hyprland hyprland-devel xdg-desktop-portal-hyprland hyprpicker hyprsunset hyprcursor satty swww mpvpaper
+eli-xciv/hyprland hyprland hyprland-devel hyprpicker hyprsunset satty swww mpvpaper
+scottames/awww awww swww
+atim/starship starship
+varlad/yazi yazi
