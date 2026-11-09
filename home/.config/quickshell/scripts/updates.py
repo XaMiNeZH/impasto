@@ -61,6 +61,73 @@ def parse(text, source):
     return rows
 
 
+def family():
+    path = os.environ.get("IMPASTO_OS_RELEASE", "/etc/os-release")
+    try:
+        with open(path, encoding="utf-8") as handle:
+            text = handle.read()
+    except OSError:
+        return ""
+    ident = like = ""
+    for line in text.splitlines():
+        key, _, value = line.partition("=")
+        value = value.strip().strip('"')
+        if key == "ID":
+            ident = value
+        elif key == "ID_LIKE":
+            like = value
+    if ident in {"arch", "artix", "manjaro", "endeavouros", "cachyos"} or "arch" in like.split():
+        return "arch"
+    if ident == "fedora" or "fedora" in like.split():
+        return "fedora"
+    return ""
+
+
+def manager():
+    distro = family()
+    if distro == "fedora" or (distro != "arch" and shutil.which("dnf") and not shutil.which("pacman")):
+        return "dnf"
+    if shutil.which("pacman") or distro == "arch":
+        return "pacman"
+    return ""
+
+
+def parse_dnf(text):
+    """Rows from `dnf check-upgrade`.
+
+    dnf4 prints `name.arch  new-evr  repo`. dnf5 also prints
+    `name  old -> new`. A header line is ignored.
+    """
+    rows = []
+    for line in text.splitlines():
+        raw = line.strip()
+        if not raw or raw.endswith(":") or raw.lower().startswith("last metadata"):
+            continue
+        if " -> " in raw:
+            parts = raw.split()
+            if len(parts) >= 4 and parts[2] == "->":
+                rows.append({"name": parts[0], "from": parts[1], "to": parts[3], "source": "repo"})
+            continue
+        parts = raw.split()
+        if len(parts) < 2:
+            continue
+        name = parts[0]
+        if "." in name:
+            name = name.rsplit(".", 1)[0]
+        if name.lower() in {"package", "updating", "obsoleting"}:
+            continue
+        rows.append({"name": name, "from": "", "to": parts[1], "source": "repo"})
+    return rows
+
+
+def dnf_repositories():
+    result = run(["dnf", "check-upgrade"])
+    # 100 is dnf for "updates are available", which is an answer.
+    if result is None or result.returncode not in (0, 100):
+        return None, None
+    return "dnf", parse_dnf(result.stdout)
+
+
 def repositories():
     if shutil.which("checkupdates"):
         result = run(["checkupdates", "--nocolor"])
@@ -124,16 +191,34 @@ def aur():
 
 
 def main():
+    if manager() == "dnf":
+        tool, rows = dnf_repositories()
+        if rows is None:
+            print("dnf check-upgrade did not answer", file=sys.stderr)
+            print(json.dumps({"available": False, "manager": "dnf"}))
+            return
+        print(json.dumps({
+            "available": True,
+            "manager": "dnf",
+            "tool": tool,
+            "aur": False,
+            "count": len(rows),
+            "packages": [row["name"] for row in rows[:LISTED]],
+            "updates": rows,
+        }))
+        return
+
     tool, rows = repositories()
     if rows is None:
         print("Neither checkupdates nor pacman answered", file=sys.stderr)
-        print(json.dumps({"available": False}))
+        print(json.dumps({"available": False, "manager": "pacman"}))
         return
 
     remote = aur()
     updates = rows + (remote or [])
     print(json.dumps({
         "available": True,
+        "manager": "pacman",
         "tool": tool,
         "aur": remote is not None,
         "count": len(updates),

@@ -1,0 +1,3 @@
+#!/bin/sh
+# awww-daemon is what Hyprland starts. swww-daemon is the same program.
+exec swww-daemon "$@"

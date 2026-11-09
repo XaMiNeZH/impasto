@@ -42,7 +42,8 @@ Singleton {
             + "installed=0; command -v howdy >/dev/null && installed=1; "
             + "wired=0; test -x /usr/lib/impasto/face "
             + "&& test -f /usr/share/polkit-1/actions/org.impasto.face.policy "
-            + "&& test -f /etc/pam.d/impasto-face && test -f /usr/lib/security/pam_howdy.so && wired=1; "
+            + "&& test -f /etc/pam.d/impasto-face "
+            + "&& { test -f /usr/lib/security/pam_howdy.so || test -f /usr/lib64/security/pam_howdy.so; } && wired=1; "
             + "echo $camera $installed $wired"]
         stdout: StdioCollector {
             onStreamFinished: {
