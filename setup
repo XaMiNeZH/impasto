@@ -845,12 +845,41 @@ PLUGINS_PENDING=$STATE/plugins-pending
 
 # The repositories are the two named below, so hyprpm's "Are you sure?" gets
 # an empty line, which it takes as yes.
+#
+# hyprglass only builds main when the running Hyprland commit is not one of
+# its pins. A Fedora package of 0.56 or 0.57 is the same release with a
+# different hash, so that build fails. The release branch is the match.
+hyprglass_rev() {
+    local ver minor
+    ver=$(hyprland_version 2>/dev/null || true)
+    minor=${ver%.*}
+    case $minor in
+        0.56|0.57) printf 'origin/hyprland-%s\n' "$minor" ;;
+    esac
+}
+
+plugin_listed() {
+    hyprpm list 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | grep -q "Plugin $1"
+}
+
+plugin_failed() {
+    hyprpm list 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' | grep -A2 -F "Plugin $1" | grep -q 'failed to build'
+}
+
 plugin() {
-    if ! hyprpm list 2>/dev/null | grep -q "$1"; then
-        act hyprpm add "$2" </dev/null
+    local name=$1 url=$2 rev=${3:-}
+    if plugin_listed "$name" && plugin_failed "$name"; then
+        act hyprpm remove "$url" </dev/null || true
     fi
-    act hyprpm enable "$1"
-    say "$1 ok"
+    if ! plugin_listed "$name"; then
+        if [[ -n $rev ]]; then
+            act hyprpm add -v "$url" "$rev" </dev/null || return 1
+        else
+            act hyprpm add "$url" </dev/null || return 1
+        fi
+    fi
+    act hyprpm enable "$name" || return 1
+    say "$name ok"
 }
 
 # hyprpm asks sudo before every step and forgets it after each (`sudo -k`),
@@ -899,8 +928,10 @@ verb_plugins() {
     # changed under it, even by a package rebuild of the same version.
     act hyprpm update
     plugin dynamic-cursors https://github.com/virtcode/hypr-dynamic-cursors
-    plugin hyprglass https://github.com/hyprnux/hyprglass
-    act hyprpm reload
+    if ! plugin hyprglass https://github.com/hyprnux/hyprglass "$(hyprglass_rev)"; then
+        say "glass did not build against Hyprland $(hyprland_version 2>/dev/null || echo 'this version') — shake to find stays loaded"
+    fi
+    act hyprpm reload || true
     # hyprpm keys its headers on Hyprland's commit alone, so a rebuild of the
     # same version against new libraries keeps stale ones and every plugin is
     # refused, while `reload` still reports success. Only the list says so.
