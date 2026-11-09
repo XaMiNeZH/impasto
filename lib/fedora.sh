@@ -551,10 +551,18 @@ fedora_plugin_deps() {
     [[ $DISTRO == fedora ]] || return 0
     command -v dnf >/dev/null || return 0
     local -a need=() name
-    # hyprpm looks for pkg-config and g++, which Fedora names
-    # pkgconf-pkg-config and gcc-c++. hyprwayland-scanner is its own rpm.
+    # hyprpm clones Hyprland and runs cmake on it, so it needs the
+    # compositor's build dependencies, not only a compiler.
     for name in cmake meson gcc gcc-c++ git cpio pkgconf pkgconf-pkg-config \
-            hyprwayland-scanner hyprland-devel; do
+            hyprwayland-scanner hyprland-devel \
+            libuuid-devel wayland-devel wayland-protocols-devel libeis-devel \
+            mesa-libgbm-devel mesa-libEGL-devel re2-devel pugixml-devel \
+            libcanberra-devel libdrm-devel libxkbcommon-devel pango-devel \
+            cairo-devel pixman-devel libinput-devel systemd-devel \
+            tomlplusplus-devel libdisplay-info-devel libjpeg-turbo-devel \
+            libwebp-devel libliftoff-devel seatd-devel \
+            hyprlang-devel hyprutils-devel hyprcursor-devel hyprgraphics-devel \
+            aquamarine-devel hyprland-protocols; do
         dnf_has "$name" && continue
         need+=("$name")
     done
