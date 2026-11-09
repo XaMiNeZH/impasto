@@ -554,7 +554,7 @@ fedora_plugin_deps() {
     # hyprpm clones Hyprland and runs cmake on it, so it needs the
     # compositor's build dependencies, not only a compiler.
     for name in cmake meson gcc gcc-c++ git cpio pkgconf pkgconf-pkg-config \
-            hyprwayland-scanner hyprland-devel \
+            hyprwayland-scanner hyprwayland-scanner-devel hyprland-devel \
             libuuid-devel wayland-devel wayland-protocols-devel libeis-devel \
             mesa-libgbm-devel mesa-libEGL-devel re2-devel pugixml-devel \
             libcanberra-devel libdrm-devel libxkbcommon-devel pango-devel \

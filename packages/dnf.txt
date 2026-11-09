@@ -162,6 +162,7 @@ tar
 ? hyprland
 ? hyprland-devel
 ? hyprwayland-scanner
+? hyprwayland-scanner-devel
 ? hyprlang-devel
 ? hyprutils-devel
 ? hyprcursor-devel
