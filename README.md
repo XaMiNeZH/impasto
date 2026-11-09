@@ -134,28 +134,84 @@ screen and the boot splash are the same design, before there is a session.
 
 ## Installation
 
-Arch Linux or Fedora 43 or newer, and Hyprland 0.56 or newer, from a terminal
-or a console:
+Fedora 43 or newer, or Arch Linux, and Hyprland 0.56 or newer. Clone **this**
+repository. The upstream tree at `andreumassanet/impasto` is the Arch desk
+only, and its commands (`pacman`, `yay`, `paru`, `mkinitcpio`) are the wrong
+ones on Fedora.
+
+The account that runs setup needs `sudo`. On Fedora that means the `wheel`
+group. Create the user with that group alone; `i2c` often does not exist yet,
+and setup adds it later when the group is there.
+
+### Fedora
 
 ```bash
-git clone https://github.com/andreumassanet/impasto.git ~/impasto
+git clone https://github.com/XaMiNeZH/impasto.git ~/impasto
 cd ~/impasto
 ./setup install
 ```
 
-`./setup` reads `/etc/os-release` and installs with pacman on Arch or dnf on
-Fedora. It copies `home/` and `system/` into place, and sets up the login
-screen, the plugins and the programs around the shell. Run `./setup` alone to
-pick from a menu instead.
+`./setup install` reads `/etc/os-release` and installs the missing packages
+with `dnf`. It copies `home/` and `system/` into place, then sets up the login
+screen. A Hyprland that is already installed is left as it is. One older than
+0.56 is reported and stays. Quickshell has to be 0.3 or newer and built
+against the system Qt: an older repository package is not installed, and 0.3
+is built from source into `/usr/local`. The boot splash is rebuilt with
+dracut.
 
-On Fedora, a Hyprland that is already installed is left as it is. One older
-than 0.56 is reported and not replaced. Quickshell has to be 0.3 or newer and
-built against the system Qt: a repository build that is older, or a COPR
-build that would downgrade Qt, is not installed, and 0.3 is built from source
-into `/usr/local` instead. Programs that are not in the Fedora repositories
-(Zen, Vesktop, VSCodium, Spotify, spicetify, quickemu) are skipped, with the
-reason, and the rest of the desk still installs. The boot splash uses dracut,
-not mkinitcpio.
+Run `./setup` with no arguments to pick from a menu.
+
+**Setup already finished, and packages are still missing.** Stay in the
+checkout you have. This installs only what is absent and leaves the files
+already copied.
+
+```bash
+cd ~/impasto
+git remote set-url origin https://github.com/XaMiNeZH/impasto.git
+git fetch origin
+git checkout main
+git pull origin main
+./setup packages
+```
+
+Then open a terminal **inside the Hyprland session** and build the two
+plugins. That step needs the compositor running, and it asks for your password
+once:
+
+```bash
+cd ~/impasto
+./setup plugins
+```
+
+`dynamic-cursors` is shake-to-find. `hyprglass` is the refraction on windows.
+It loads switched off. Press <kbd>SUPER</kbd> <kbd>,</kbd>, open Windows →
+Depth, and turn on **Refraction**. It shows through the terminal. A fully
+opaque window is left alone.
+
+These are not in the Fedora repositories, so setup skips them and says so:
+Zen, Vesktop, VSCodium, Spotify, spicetify, quickemu. Install VSCodium from
+its own rpm, then run `./setup vscodium`.
+
+Check the two versions that the desk depends on:
+
+```bash
+hyprctl version
+qs --version || quickshell --version
+```
+
+Hyprland has to be 0.56 or newer. Quickshell has to be 0.3 or newer.
+
+### Arch Linux
+
+```bash
+git clone https://github.com/XaMiNeZH/impasto.git ~/impasto
+cd ~/impasto
+./setup install
+```
+
+On Arch, setup installs with pacman and an AUR helper (`yay` or `paru`, built
+from the AUR when neither is present). The boot splash is rebuilt with
+mkinitcpio.
 
 <details>
 <summary><b>Flags</b></summary>
