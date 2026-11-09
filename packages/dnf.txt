@@ -190,8 +190,8 @@ tar
 ? libjpeg-turbo-devel
 ? libwebp-devel
 ? libliftoff-devel
-? seatd-devel
-? muparser-devel
+? libseat-devel
+? muParser-devel
 ? hyprpicker
 ? hyprsunset
 ? satty
