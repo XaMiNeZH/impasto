@@ -561,6 +561,7 @@ fedora_plugin_deps() {
             cairo-devel pixman-devel libinput-devel systemd-devel \
             tomlplusplus-devel libdisplay-info-devel libjpeg-turbo-devel \
             libwebp-devel libliftoff-devel libseat-devel muParser-devel \
+            sdbus-cpp-devel \
             hyprlang-devel hyprutils-devel hyprcursor-devel hyprgraphics-devel \
             aquamarine-devel hyprland-protocols; do
         dnf_has "$name" && continue

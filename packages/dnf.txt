@@ -193,6 +193,7 @@ tar
 ? libliftoff-devel
 ? libseat-devel
 ? muParser-devel
+? sdbus-cpp-devel
 ? hyprpicker
 ? hyprsunset
 ? satty
