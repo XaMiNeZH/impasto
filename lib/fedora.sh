@@ -547,6 +547,77 @@ fedora_note_apps() {
     command -v quickemu >/dev/null || say 'skipped  quickemu — not in the Fedora repositories'
 }
 
+# Repository id of an installed package, as owner/project when it came
+# from a COPR. Empty when the package is absent or came from Fedora.
+fedora_installed_copr() {
+    local name=$1 repo
+    repo=$(dnf repoquery --installed -q --qf '%{from_repo}' "$name" 2>/dev/null | head -1 || true)
+    if [[ -z $repo || $repo == *'%'* ]]; then
+        repo=$(dnf list --installed "$name" 2>/dev/null | awk -v n="$name" 'NR>1 && index($1, n ".")==1 { sub(/^@/, "", $3); print $3; exit }')
+    fi
+    [[ $repo == copr:copr.fedorainfracloud.org:*:* ]] || return 1
+    repo=${repo#copr:copr.fedorainfracloud.org:}
+    printf '%s/%s\n' "${repo%%:*}" "${repo#*:}"
+}
+
+# True when dnf would install this package without taking the running
+# Hyprland stack down to the older copy in the Fedora repositories.
+dnf_would_install() {
+    local out
+    out=$(sudo dnf install -y --assumeno "$@" 2>&1 || true)
+    grep -qiE 'No match for|nothing provides|Problem:|conflicting requests|Could not depsolve|Downgrading' <<<"$out" && return 1
+    grep -qiE 'Installing:|Reinstalling:|Upgrading:' <<<"$out"
+}
+
+# hyprpm's pkg-config line links with -laquamarine and the other Hyprland
+# libraries. The running package ships libaquamarine.so.15; the name the
+# linker asks for is the unversioned symlink from the matching -devel
+# package, which is not in the Fedora repositories.
+fedora_link_libs() {
+    local -a missing=()
+    local name copr pkg line repo
+    for name in aquamarine hyprutils hyprgraphics hyprlang hyprcursor; do
+        [[ -e /usr/lib64/lib${name}.so || -e /usr/lib/lib${name}.so ]] && continue
+        missing+=("$name")
+    done
+    (( ${#missing[@]} )) || return 0
+    say "linker is missing: ${missing[*]}"
+    if (( DRY )); then return 0; fi
+    for name in "${missing[@]}"; do
+        pkg=${name}-devel
+        copr=$(fedora_installed_copr "$name" || fedora_installed_copr hyprland || true)
+        if [[ -n $copr ]] && ! copr_enabled "$copr"; then
+            sudo dnf copr enable -y "$copr" || true
+        fi
+        if rpm -q "$pkg" >/dev/null 2>&1; then
+            sudo dnf reinstall -y "$pkg" || true
+        elif dnf_would_install "$pkg"; then
+            sudo dnf install -y "$pkg" || true
+        fi
+        if [[ -e /usr/lib64/lib${name}.so || -e /usr/lib/lib${name}.so ]]; then
+            say "installed $pkg"
+            continue
+        fi
+        if [[ -f $REPO/packages/copr.txt ]]; then
+            while IFS= read -r line || [[ -n $line ]]; do
+                line=${line%%#*}
+                line=${line#"${line%%[![:space:]]*}"}
+                [[ -n $line ]] || continue
+                read -r repo _ <<< "$line"
+                copr_enabled "$repo" || sudo dnf copr enable -y "$repo" || continue
+                dnf_would_install "$pkg" || continue
+                sudo dnf install -y "$pkg" || true
+                [[ -e /usr/lib64/lib${name}.so || -e /usr/lib/lib${name}.so ]] && break
+            done < "$REPO/packages/copr.txt"
+        fi
+        if [[ -e /usr/lib64/lib${name}.so || -e /usr/lib/lib${name}.so ]]; then
+            say "installed $pkg"
+        else
+            say "skipped  $pkg — the linker still cannot find lib${name}.so"
+        fi
+    done
+}
+
 fedora_plugin_deps() {
     [[ $DISTRO == fedora ]] || return 0
     command -v dnf >/dev/null || return 0
@@ -574,6 +645,7 @@ fedora_plugin_deps() {
     say "missing: ${need[*]}"
     if (( DRY )); then return 0; fi
     fedora_dnf_install "${need[@]}"
+    fedora_link_libs
     command -v hyprwayland-scanner >/dev/null || \
         say 'skipped  hyprwayland-scanner — hyprpm cannot build the plugins without it'
 }
