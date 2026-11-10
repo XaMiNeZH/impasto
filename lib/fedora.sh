@@ -1,6 +1,5 @@
-# Fedora half of ./setup. Sourced by setup; not run on its own.
-# Arch keeps packages/pacman.txt and packages/aur.txt. This file is what
-# runs when /etc/os-release says fedora.
+# Fedora installer for ./setup. Sourced by setup; not run on its own.
+# This fork installs on Fedora only.
 
 DISTRO=unknown
 DISTRO_ID=
@@ -28,33 +27,19 @@ read_distro() {
     DISTRO_ID=$id
     DISTRO_VERSION=$version
     case $id in
-        arch|artix|manjaro|endeavouros|cachyos|archlinux) DISTRO=arch ;;
         fedora) DISTRO=fedora ;;
         *)
             case " $like " in
-                *' arch '*|*' archlinux '*) DISTRO=arch ;;
                 *' fedora '*) DISTRO=fedora ;;
             esac
             ;;
     esac
 }
 
-# $1 is a path relative to system/. True when this distro must not copy it.
-distro_skips() {
-    case ${DISTRO:-unknown} in
-        fedora)
-            [[ $1 == etc/mkinitcpio.conf.d/* || $1 == etc/default/grub.d/* ]]
-            ;;
-        *)
-            [[ $1 == etc/dracut.conf.d/* ]]
-            ;;
-    esac
-}
+# Nothing under system/ is distro-conditional: the tree is the Fedora one.
+distro_skips() { return 1; }
 
-desk_line() {
-    if [[ $DISTRO == fedora ]]; then printf 'a desk for Fedora and Hyprland'
-    else printf 'a desk for Arch Linux and Hyprland'; fi
-}
+desk_line() { printf 'a desk for Fedora and Hyprland'; }
 
 # One name a line. $2 is required, optional or all. A leading `?` marks
 # an optional name; `#` comments are dropped first.
@@ -668,8 +653,8 @@ fedora_selinux() {
     fi
 }
 
-# The virtual camera is opt-in. v4l2loopback is not in Fedora's own
-# repositories; the verb says so instead of calling pacman.
+# The virtual camera is opt-in. v4l2loopback is in RPM Fusion, not in
+# Fedora's own repositories.
 fedora_install_camera() {
     local -a pkgs=(python3-numpy python3-opencv kernel-devel)
     dnf_available akmod-v4l2loopback && pkgs+=(akmod-v4l2loopback)
