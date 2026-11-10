@@ -556,14 +556,17 @@ fedora_plugin_deps() {
     for name in cmake meson gcc gcc-c++ git cpio pkgconf pkgconf-pkg-config \
             hyprwayland-scanner hyprwayland-scanner-devel hyprland-devel \
             libuuid-devel wayland-devel wayland-protocols-devel libeis-devel \
-            mesa-libgbm-devel mesa-libEGL-devel re2-devel pugixml-devel \
+            mesa-libgbm-devel mesa-libEGL-devel mesa-libGL-devel mesa-libGLES-devel \
+            re2-devel pugixml-devel \
             libcanberra-devel libdrm-devel libxkbcommon-devel pango-devel \
             cairo-devel pixman-devel libinput-devel systemd-devel \
             tomlplusplus-devel libdisplay-info-devel libjpeg-turbo-devel \
             libwebp-devel libliftoff-devel libseat-devel muParser-devel \
-            sdbus-cpp-devel \
+            sdbus-cpp-devel lcms2-devel glib2-devel libXcursor-devel \
+            readline-devel glslang-devel lua-devel udis86-devel \
             hyprlang-devel hyprutils-devel hyprcursor-devel hyprgraphics-devel \
-            aquamarine-devel hyprland-protocols hyprland-protocols-devel; do
+            aquamarine-devel hyprland-protocols hyprland-protocols-devel \
+            hyprwire-devel; do
         dnf_has "$name" && continue
         need+=("$name")
     done
