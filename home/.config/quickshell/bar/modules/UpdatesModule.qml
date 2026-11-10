@@ -15,7 +15,7 @@ import "../../services"
 import "../../components"
 
 // Pending update count; the detail lists the first few pending, when it was
-// checked, and opens the packages panel. No upgrade button: pacman needs a
+// checked, and opens the packages panel. No upgrade button: dnf needs a
 // terminal and a password, which the panel's Update provides.
 Item {
     id: root
@@ -42,16 +42,7 @@ Item {
                 return UpdatesService.count === 1
                     ? "1 update" : `${UpdatesService.count} updates`
             }
-            // Flag results from the fallback, which reads the last synced
-            // database; checkupdates is current and needs no label.
-            subtitle: {
-                const parts = []
-                if (UpdatesService.tool === "pacman")
-                    parts.push("as of the last sync")
-                if (UpdatesService.age !== "")
-                    parts.push(`checked ${UpdatesService.age}`)
-                return parts.join(" · ")
-            }
+            subtitle: UpdatesService.age !== "" ? `checked ${UpdatesService.age}` : ""
 
             mark: RingIndicator {
                 anchors.fill: parent

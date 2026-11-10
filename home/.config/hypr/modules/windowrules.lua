@@ -76,7 +76,7 @@ hl.window_rule({
 })
 
 
--- · the terminals the shell opens: pacman from the packages panel, and the
+-- · the terminals the shell opens: dnf from the packages panel, and the
 --   installer from Settings
 hl.window_rule({
     name  = "shell-terminal",

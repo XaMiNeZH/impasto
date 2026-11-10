@@ -64,7 +64,7 @@ Singleton {
         { id: "keys",       icon: "󰌌", label: "Keys",
           detail: "Every shortcut, on one sheet",          panel: "keys" },
         { id: "packages",   icon: "󰏗", label: "Packages",
-          detail: "Updates, what is installed, the AUR",   panel: "packages" },
+          detail: "Updates and what is installed",         panel: "packages" },
         { id: "servers",    icon: "󰒋", label: "Servers",
           detail: "The ports your projects listen on",     panel: "servers" },
         { id: "screentime", icon: "󰔛", label: "Screen time",
