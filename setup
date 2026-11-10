@@ -31,7 +31,6 @@ WATCH=0
 RESTORE=0
 FILES_ARGS=()
 QUIET=0
-HELPER=
 SKIP_PACKAGES=0
 SKIP_SYSTEM=0
 SKIP_PLUGINS=0
@@ -162,8 +161,7 @@ Usage: ./setup <command> [options]
   uninstall   remove every installed file that has not been edited since,
               and put back what was in the way when it was installed
 
-  packages    install what this distro's package list names — pacman and
-              the AUR on Arch, dnf on Fedora
+  packages    install what packages/dnf.txt names, with dnf
   sync        copy home/ into $HOME — how a change in the repository lands
   system      copy system/ into /, and switch the login screen on where no
               other display manager is (asks for a password)
@@ -176,7 +174,7 @@ Usage: ./setup <command> [options]
   nautilus    apply the file manager's settings and sidebar
   vesktop     tick the palette's theme in Vencord
   face        unlock the lock screen with your face, where there is an
-              infrared camera: installs howdy-next and enrols you
+              infrared camera: installs howdy and enrols you
   camera      effects and gesture reactions on the webcam, for any call:
               installs the virtual camera and the face and hand models
   splash      the boot splash: chooses the theme, adds splash to the kernel
@@ -195,8 +193,6 @@ Options:
   --skip-system       install, update: leave / alone
   --skip-plugins      install, update: do not build the plugins
   --skip-extras       install, update: leave the extras above alone
-  --aur-helper NAME   yay or paru. The one installed is used, and when there
-                      is neither, this one is built from the AUR (yay if unset)
   --noconfirm         answer every question with its default
   -n, --dry-run       say what would change, and change nothing
   -w, --watch         sync: copy again every time a file under home/ is saved
@@ -389,7 +385,6 @@ tidy() {
         case $dir in
             .config|.local|.local/share|.local/state|.cache|etc|usr|usr/share|var|var/lib) return 0 ;;
         esac
-        if [[ -n $SUDO ]] && command -v pacman >/dev/null && pacman -Qqo "$target/$dir" >/dev/null 2>&1; then return 0; fi
         if [[ -n $SUDO ]] && command -v rpm >/dev/null && rpm -qf "$target/$dir" >/dev/null 2>&1; then return 0; fi
         act $SUDO rmdir "$target/$dir" 2>/dev/null || return 0
         dir=$(dirname "$dir")
@@ -404,7 +399,6 @@ deploy() {
     read_manifest "$manifest"
     AFTER=()
     while IFS= read -r rel; do
-        # Arch keeps mkinitcpio and the GRUB drop-in; Fedora keeps dracut.
         if distro_skips "$rel"; then continue; fi
         src=$REPO/$tree/$rel
         dst=$target/$rel
@@ -746,62 +740,9 @@ display_manager() {
     stamp display-manager
 }
 
-# Uses yay or paru if installed; otherwise offers to build one from the AUR.
-aur_helper() {
-    local -a yes=()
-    if (( NOCONFIRM )); then yes=(--noconfirm); fi
-    if [[ -z $HELPER ]]; then
-        for HELPER in yay paru; do
-            if command -v "$HELPER" >/dev/null; then return 0; fi
-        done
-        HELPER=yay
-    fi
-    if command -v "$HELPER" >/dev/null; then return 0; fi
-    if (( DRY )); then say "would build $HELPER-bin from the AUR"; return 0; fi
-    if ! ask "neither yay nor paru is installed — build $HELPER-bin from the AUR?"; then
-        say 'skipped: install these with an AUR helper'
-        return 1
-    fi
-    local tmp
-    tmp=$(mktemp -d)
-    git clone -q --depth=1 "https://aur.archlinux.org/$HELPER-bin.git" "$tmp/$HELPER-bin"
-    (cd "$tmp/$HELPER-bin" && makepkg -si "${yes[@]}")
-    rm -rf "$tmp"
-}
-
-# One name a line, `#` starting a comment anywhere.
-names() { sed 's/#.*//' "$1" | tr -s ' \t' '\n' | sed '/^$/d'; }
-
-# `pacman -T` also counts providers, so e.g. fnm-bin satisfies fnm.
 verb_packages() {
-    case $DISTRO in
-        fedora) verb_packages_fedora; return ;;
-        arch) ;;
-        *) fail "impasto installs on Arch Linux and Fedora (this is ${DISTRO_ID:-unknown})" ;;
-    esac
-    local -a yes=() want missing
-    if (( NOCONFIRM )); then yes=(--noconfirm); fi
-
-    section pacman
-    mapfile -t want < <(names "$REPO/packages/pacman.txt")
-    mapfile -t missing < <(pacman -T "${want[@]}" || true)
-    # With the system upgraded in the same transaction: against a stale
-    # database a new name is not found, and a file moving between packages
-    # (hyprpm out of hyprland) needs both at once.
-    if (( ${#missing[@]} )); then
-        say "missing: ${missing[*]}"
-        act sudo pacman -Syu --needed "${yes[@]}" "${missing[@]}"
-    else
-        say "all ${#want[@]} installed"
-    fi
-
-    section aur
-    mapfile -t want < <(names "$REPO/packages/aur.txt")
-    mapfile -t missing < <(pacman -T "${want[@]}" || true)
-    if (( ! ${#missing[@]} )); then say "all ${#want[@]} installed"; return 0; fi
-    say "missing: ${missing[*]}"
-    aur_helper || return 0
-    act "$HELPER" -S --needed "${yes[@]}" "${missing[@]}"
+    [[ $DISTRO == fedora ]] || fail "impasto installs on Fedora (this is ${DISTRO_ID:-unknown})"
+    verb_packages_fedora
 }
 
 # Creates the localised XDG folders (existing ones are never renamed). The
@@ -1056,18 +997,11 @@ verb_uninstall() {
         act sudo rm -f /etc/modprobe.d/impasto-camera.conf /etc/modules-load.d/impasto-camera.conf
     fi
     # The boot splash: its files went with system/, but the theme stays chosen
-    # and the initramfs and grub.cfg already built still carry it.
+    # and the initramfs already built still carries it.
     if command -v plymouth-set-default-theme >/dev/null && [[ $(plymouth-set-default-theme) == impasto ]]; then
         act sudo plymouth-set-default-theme --reset
-        if [[ $DISTRO == fedora ]]; then
-            fedora_uninstall_splash
-        else
-            act sudo mkinitcpio -P >/dev/null || say 'the initramfs did not rebuild: sudo mkinitcpio -P'
-            if [[ -f /boot/grub/grub.cfg ]] && command -v grub-mkconfig >/dev/null; then
-                act sudo grub-mkconfig -o /boot/grub/grub.cfg >/dev/null 2>&1
-            fi
-        fi
-        say 'removed  the boot splash · other boot loaders keep the splash argument, which does nothing now'
+        fedora_uninstall_splash
+        say 'removed  the boot splash · the splash kernel argument does nothing now'
     fi
     # So an install after this one sets the extras up again.
     act rm -rf "$APPLIED" "$PLUGINS_PENDING"
@@ -1314,28 +1248,17 @@ verb_face() {
     section 'face unlock'
     command -v v4l2-ctl >/dev/null || refuse 'v4l2-ctl is not installed (package: v4l-utils)' || return
     local camera
-    local -a yes=()
-    if (( NOCONFIRM )); then yes=(--noconfirm); fi
     if ! camera=$(ir_camera); then
         if [[ -n $SOFT ]]; then say 'skipped  no infrared camera'; return 0; fi
         fail 'no infrared camera: face unlock needs one'
     fi
     [[ -f /etc/pam.d/impasto-face ]] \
         || refuse "the lock screen's PAM service is not installed (./setup system)" || return
-    # Built without its test suite: one test races the compare process against
-    # the password prompt and fails under a parallel build, and passes alone.
     if ! command -v howdy >/dev/null; then
-        if [[ $DISTRO == fedora ]]; then
-            if dnf_available howdy; then
-                act sudo dnf install -y howdy || refuse 'howdy was not installed' || return
-            else
-                refuse 'howdy is not in the Fedora repositories — install it, then run ./setup face' || return
-            fi
+        if dnf_available howdy; then
+            act sudo dnf install -y howdy || refuse 'howdy was not installed' || return
         else
-            aur_helper || refuse 'howdy-next needs an AUR helper' || return
-            act "$HELPER" -S --needed "${yes[@]}" --mflags --nocheck howdy-next \
-                || refuse 'howdy-next was not installed' || return
-            say 'installed howdy-next'
+            refuse 'howdy is not in the Fedora repositories — install it, then run ./setup face' || return
         fi
     fi
     act sudo howdy download-models >/dev/null || refuse 'the recognition models did not download' || return
@@ -1388,30 +1311,15 @@ CAMERA_FILES=(
 verb_camera() {
     section 'camera effects'
     command -v v4l2-ctl >/dev/null || refuse 'v4l2-ctl is not installed (package: v4l-utils)' || return
-    local camera headers kernel
-    local -a yes=()
-    if (( NOCONFIRM )); then yes=(--noconfirm); fi
+    local camera
     if ! camera=$(colour_camera); then
         if [[ -n $SOFT ]]; then say 'skipped  no camera'; return 0; fi
         fail 'no camera: the effects need a webcam'
     fi
     say "camera   $camera"
-    if [[ $DISTRO == fedora ]]; then
-        fedora_install_camera \
-            || refuse 'the virtual camera was not installed (v4l2loopback is in RPM Fusion, and MediaPipe may need pip)' \
-            || return
-    else
-        kernel=$(cat "/usr/lib/modules/$(uname -r)/pkgbase" 2>/dev/null) || kernel=linux
-        headers=$kernel-headers
-        act sudo pacman -S --needed "${yes[@]}" v4l2loopback-dkms "$headers" python-numpy python-opencv \
-            || refuse 'the virtual camera was not installed' || return
-        if ! python3 -c 'import mediapipe' 2>/dev/null; then
-            aur_helper || refuse 'MediaPipe needs an AUR helper' || return
-            act "$HELPER" -S --needed "${yes[@]}" python-mediapipe-bin \
-                || refuse 'MediaPipe was not installed' || return
-            say 'installed MediaPipe'
-        fi
-    fi
+    fedora_install_camera \
+        || refuse 'the virtual camera was not installed (v4l2loopback is in RPM Fusion, and MediaPipe may need pip)' \
+        || return
     # exclusive_caps: listed as a camera only while something writes to it,
     # which camera.py does from the moment the shell starts it.
     act sudo install -Dm644 /dev/stdin /etc/modprobe.d/impasto-camera.conf <<<'options v4l2loopback video_nr=10 card_label="impasto camera" exclusive_caps=1' \
@@ -1451,63 +1359,8 @@ splash_argument() {
     return 0
 }
 
-# The boot splash: the theme and the initramfs drop-in are in system/.
-# Arch rebuilds with mkinitcpio; Fedora rebuilds with dracut.
-verb_splash() {
-    if [[ $DISTRO == fedora ]]; then verb_splash_fedora; else verb_splash_arch; fi
-}
-
-verb_splash_arch() {
-    section 'boot splash'
-    [[ -z $ROOT ]] || refuse 'the boot splash is set up on the machine itself, not in a chroot' || return
-    command -v plymouth-set-default-theme >/dev/null || refuse 'plymouth is not installed (package: plymouth)' || return
-    command -v mkinitcpio >/dev/null || refuse 'the initramfs is not built by mkinitcpio' || return
-    [[ -f /usr/share/plymouth/themes/impasto/impasto.plymouth && -f /etc/mkinitcpio.conf.d/impasto.conf ]] \
-        || refuse 'the theme is not installed (./setup system)' || return
-    if (( DRY )); then
-        say 'would choose the theme, add splash to the kernel command line and rebuild the initramfs'
-        return 0
-    fi
-    sudo -v
-    if [[ $(plymouth-set-default-theme) != impasto ]]; then
-        act sudo plymouth-set-default-theme impasto || refuse 'the theme could not be chosen' || return
-    fi
-    say 'theme    impasto'
-    local loader= esp entry root config
-    if [[ -f /etc/default/grub ]] && command -v grub-mkconfig >/dev/null; then
-        loader=grub
-    fi
-    esp=$(sudo bootctl --print-esp-path 2>/dev/null) || esp=
-    # The entries are on the ESP, or on an XBOOTLDR partition beside it.
-    for root in "$esp" "$(sudo bootctl --print-boot-path 2>/dev/null)"; do
-        [[ -n $root ]] && sudo test -d "$root/loader/entries" || continue
-        for entry in $(sudo find "$root/loader/entries" -maxdepth 1 -name '*.conf'); do
-            splash_argument "$entry" '^options' && loader=${loader:-systemd-boot}
-        done
-    done
-    splash_argument /etc/kernel/cmdline '.' && loader=${loader:-uki}
-    for entry in /boot/limine.conf /boot/limine/limine.conf ${esp:+"$esp/limine.conf"} \
-            ${esp:+"$esp/EFI/limine/limine.conf"}; do
-        splash_argument "$entry" '^[[:space:]]*(kernel_)?cmdline:' && loader=${loader:-limine}
-    done
-    [[ -n $loader ]] || refuse 'no boot loader found to give the splash argument to' || return
-    # A preset that names its own config makes mkinitcpio skip conf.d, and
-    # with it the drop-in that adds the hook.
-    for config in $(sed -nE "s/^[[:space:]]*[A-Za-z_]*config=[\"']?([^\"' ]+).*/\1/p" \
-            /etc/mkinitcpio.d/*.preset 2>/dev/null | sort -u); do
-        grep -qE '^[[:space:]]*HOOKS=.*[( ]plymouth[ )]' "$config" 2>/dev/null \
-            || refuse "$config is named by a preset, so mkinitcpio skips its drop-ins: add plymouth to its HOOKS after systemd or udev" \
-            || return
-    done
-    act sudo mkinitcpio -P >/dev/null || refuse 'the initramfs did not rebuild' || return
-    say 'rebuilt  the initramfs, with plymouth'
-    if [[ $loader == grub ]]; then
-        act sudo grub-mkconfig -o /boot/grub/grub.cfg >/dev/null 2>&1 || refuse 'grub-mkconfig failed' || return
-        say 'rebuilt  /boot/grub/grub.cfg'
-    fi
-    stamp splash
-    say 'ok · from the next boot'
-}
+# The boot splash: the theme and the dracut drop-in are in system/.
+verb_splash() { verb_splash_fedora; }
 
 
 # ── CHECKS ──────────────────────────────────────────────────────────────────
@@ -1523,8 +1376,8 @@ verb_check() {
         "${files[@]}"
     say 'syntax ok'
 
-    # Arch calls it luac; Debian and Ubuntu, where CI runs, may only have
-    # luac5.4 unless the alternatives point the plain name at it.
+    # CI runs on Ubuntu, which may only have luac5.4 unless the alternatives
+    # point the plain name at it.
     section lua
     local luac
     luac=$(command -v luac || command -v luac5.4) || fail 'luac is not installed (package: lua)'
@@ -1679,19 +1532,11 @@ PARTS=(
     'extras:the extras'
 )
 
-# The screen install opens on. Sets the SKIP_* flags and HELPER, and answers
-# whether to go ahead.
+# The screen install opens on. Sets the SKIP_* flags and answers whether
+# to go ahead.
 parts() {
     local -a on=(1 1 1 1)
-    local at=0 rows=5 i k name note label box pick pacman aur helper=0
-    local -a helpers=(yay paru)
-    pacman=$(names "$REPO/packages/pacman.txt" | wc -l)
-    aur=$(names "$REPO/packages/aur.txt" | wc -l)
-    # The one installed, as `aur_helper` would pick it.
-    case $HELPER in
-        paru) helper=1 ;;
-        '')   if ! command -v yay >/dev/null && command -v paru >/dev/null; then helper=1; fi ;;
-    esac
+    local at=0 rows=4 i k name note label box
     while :; do
         redraw
         line "  ${TEXT}what to install${OFF}   $FAINT·   space toggles, enter installs$OFF"
@@ -1699,12 +1544,7 @@ parts() {
         for i in "${!PARTS[@]}"; do
             name=${PARTS[i]#*:}
             case ${PARTS[i]%%:*} in
-                packages)
-                    if [[ $DISTRO == fedora ]]; then
-                        note="$(manifest_names "$REPO/packages/dnf.txt" required | wc -l) from the Fedora repositories"
-                    else
-                        note="$pacman from the repositories, $aur from the AUR"
-                    fi ;;
+                packages) note="$(manifest_names "$REPO/packages/dnf.txt" required | wc -l) from the Fedora repositories" ;;
                 system)   note='sddm, unless this machine already has one' ;;
                 plugins)  note='shake to find · glass on the windows' ;;
                 extras)   note='Nautilus, VSCodium, Vesktop, Spotify, GTK, your face, the camera, the boot splash' ;;
@@ -1718,42 +1558,17 @@ parts() {
             line "  $(here "$i" "$at") $box  $label$FAINT$note$OFF"
         done
         line ''
-        if [[ $DISTRO == fedora ]]; then
-            if (( at == 4 )); then
-                label="$TEXT$BOLD$(printf '%-18s' 'the AUR helper')$OFF"
-            else
-                label="$MUTED$(printf '%-18s' 'the AUR helper')$OFF"
-            fi
-            line "  $(here 4 "$at")    $label${FAINT}not used on Fedora$OFF"
-        else
-            if (( helper == 0 )); then
-                pick="$ACCENT‹ yay ›$OFF   ${FAINT}paru$OFF"
-            else
-                pick="${FAINT}yay$OFF   $ACCENT‹ paru ›$OFF"
-            fi
-            if (( at == 4 )); then
-                label="$TEXT$BOLD$(printf '%-18s' 'the AUR helper')$OFF"
-            else
-                label="$MUTED$(printf '%-18s' 'the AUR helper')$OFF"
-            fi
-            line "  $(here 4 "$at")    $label$pick"
-        fi
-        line ''
         hint '↑↓:move' 'space:toggle' 'enter:install' 'q:quit'
         k=$(key) || k=quit
         case $k in
             up)    at=$(( at ? at - 1 : rows - 1 )) ;;
             down)  at=$(( (at + 1) % rows )) ;;
-            left|right|space)
-                if (( at == 4 )); then
-                    if [[ $DISTRO != fedora ]]; then helper=$(( 1 - helper )); fi
-                elif [[ $k == space ]]; then on[at]=$(( 1 - on[at] )); fi ;;
+            space) on[at]=$(( 1 - on[at] )) ;;
             enter)
                 SKIP_PACKAGES=$(( 1 - on[0] ))
                 SKIP_SYSTEM=$((   1 - on[1] ))
                 SKIP_PLUGINS=$((  1 - on[2] ))
                 SKIP_EXTRAS=$((   1 - on[3] ))
-                HELPER=${helpers[helper]}
                 return 0 ;;
             quit) return 1 ;;
         esac
@@ -1808,8 +1623,6 @@ main() {
             --skip-system)   SKIP_SYSTEM=1 ;;
             --skip-plugins)  SKIP_PLUGINS=1 ;;
             --skip-extras)   SKIP_EXTRAS=1 ;;
-            --aur-helper)    (( $# > 1 )) || fail '--aur-helper takes yay or paru'; HELPER=$2; shift ;;
-            --aur-helper=*)  HELPER=${1#*=} ;;
             --noconfirm)     NOCONFIRM=1 ;;
             -n|--dry-run)    DRY=1 ;;
             -w|--watch)      WATCH=1 ;;
@@ -1824,11 +1637,12 @@ main() {
     # shellcheck source=lib/fedora.sh
     source "$REPO/lib/fedora.sh"
     read_distro
-    if [[ -z $verb ]]; then interactive; exit 0; fi
-    case $HELPER in
-        ''|yay|paru) ;;
-        *) fail '--aur-helper takes yay or paru' ;;
+    # Syntax checks and the file list run anywhere. Installing does not.
+    case ${verb:-install} in
+        check|help|files) ;;
+        *) [[ $DISTRO == fedora ]] || fail "impasto installs on Fedora (this is ${DISTRO_ID:-unknown})" ;;
     esac
+    if [[ -z $verb ]]; then interactive; exit 0; fi
     case $verb in install|update|uninstall) banner ;; esac
     if (( DRY )) && [[ -z ${IMPASTO_RELAUNCHED:-} ]]; then
         printf '  %sdry run — nothing on this machine is changed%s\n' "$MUTED" "$OFF"

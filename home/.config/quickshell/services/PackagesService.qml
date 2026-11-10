@@ -1,7 +1,7 @@
 // ╭──────────────────────────────────────────────────────────────────────────╮
 // │                                                                          │
 // │   P A C K A G E S   S E R V I C E                                        │
-// │   installed, pending, and found · pacman and the AUR, read here          │
+// │   installed, pending, and found · dnf and rpm, read here                 │
 // │                                                                          │
 // │   github.com/andreumassanet/impasto                                      │
 // │                                                                          │
@@ -15,11 +15,9 @@ import Quickshell.Io
 
 // Backs the packages panel. Everything here is read-only (`packages.py` for
 // installed packages and search, `UpdatesService` for pending updates).
-// Install, Remove and Update run in a terminal so pacman's prompts, the
+// Install, Remove and Update run in a terminal so dnf's prompts, the
 // password and the output stay visible; all lists refresh when it closes.
-//
-// No per-package upgrade: Arch does not support partial upgrades, so Update
-// is always `-Syu`.
+// Update is the whole transaction: `dnf upgrade`.
 Singleton {
     id: root
 
@@ -37,7 +35,7 @@ Singleton {
     property string view: "find"
     property string query: ""
 
-    // "mine" (explicitly installed, `pacman -Qe`), "all" or "aur".
+    // "mine" (user-installed), "all" or "aur" (COPR and local builds).
     property string installedFilter: "mine"
 
     readonly property var views: [
@@ -57,11 +55,8 @@ Singleton {
     property bool loading: false
     property var installed: []
     property string helper: ""
-    // "pacman" on Arch, "dnf" on Fedora. Commands and the foreign-package
-    // label follow it. The scripts also report it; this is the fallback
-    // before the first read.
-    property string manager: "pacman"
-    readonly property string foreignName: root.manager === "dnf" ? "COPR" : "AUR"
+    property string manager: "dnf"
+    readonly property string foreignName: "COPR"
 
     readonly property int mineCount: root.installed.filter(row => row.explicit).length
     readonly property int aurCount: root.installed.filter(row => row.aur).length
@@ -89,7 +84,7 @@ Singleton {
                     return
                 root.installed = report.packages ?? []
                 root.helper = report.helper ?? ""
-                if (report.manager === "dnf" || report.manager === "pacman")
+                if (report.manager === "dnf")
                     root.manager = report.manager
                 root.loaded = true
             }
@@ -98,14 +93,14 @@ Singleton {
 
     // ── SEARCH ──────────────────────────────────────────────────────────────
     //
-    // Debounced 250 ms: each search is a pacman query plus an AUR request.
+    // Debounced 250 ms: each search is one dnf repoquery.
 
     property var found: []
     property string foundTerm: ""
     property int foundRepos: 0
     property int foundAur: 0
-    // "ok", "prefix" (the AUR matched too much and answered the names that
-    // start with it), "offline", or "short" (under two letters).
+    // "off" when the repositories answered, "offline" when dnf did not,
+    // or "short" (under two letters).
     property string foundNote: ""
     property bool searching: false
 
@@ -160,7 +155,7 @@ Singleton {
                 root.foundRepos = report.repos ?? 0
                 root.foundAur = report.aurCount ?? 0
                 root.foundNote = report.aur ?? ""
-                if (report.manager === "dnf" || report.manager === "pacman")
+                if (report.manager === "dnf")
                     root.manager = report.manager
             }
         }
@@ -210,44 +205,22 @@ Singleton {
     function install(row: var): void {
         if (!row)
             return
-        if (root.manager === "dnf") {
-            root.open(["sudo", "dnf", "install", row.name])
-            return
-        }
-        if (root.helper !== "")
-            root.open([root.helper, "-S", row.name])
-        else if (row.source !== "aur")
-            root.open(["sudo", "pacman", "-S", row.name])
+        root.open(["sudo", "dnf", "install", row.name])
     }
 
-    // -Rns: also removes orphaned dependencies and the configuration pacman
-    // would otherwise keep as .pacsave. pacman refuses, with its reason, if
-    // something still depends on the package.
+    // dnf refuses, and says why, when something still depends on the package.
     function remove(row: var): void {
         if (!row)
             return
-        if (root.manager === "dnf")
-            root.open(["sudo", "dnf", "remove", row.name])
-        else
-            root.open(["sudo", "pacman", "-Rns", row.name])
+        root.open(["sudo", "dnf", "remove", row.name])
     }
 
     function upgrade(): void {
-        if (root.manager === "dnf")
-            root.open(["sudo", "dnf", "upgrade"])
-        else
-            root.open(root.helper !== ""
-                ? [root.helper, "-Syu"]
-                : ["sudo", "pacman", "-Syu"])
+        root.open(["sudo", "dnf", "upgrade"])
     }
 
-    // AUR packages need a helper. Fedora installs from dnf directly.
     function installable(row: var): bool {
-        if (!row || row.installed)
-            return false
-        if (root.manager === "dnf")
-            return true
-        return row.source !== "aur" || root.helper !== ""
+        return !!row && row.installed !== true
     }
 
     // The command is passed as arguments, never interpolated into the

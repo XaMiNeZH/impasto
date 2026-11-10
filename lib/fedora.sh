@@ -1,6 +1,5 @@
-# Fedora half of ./setup. Sourced by setup; not run on its own.
-# Arch keeps packages/pacman.txt and packages/aur.txt. This file is what
-# runs when /etc/os-release says fedora.
+# Fedora installer for ./setup. Sourced by setup; not run on its own.
+# This fork installs on Fedora only.
 
 DISTRO=unknown
 DISTRO_ID=
@@ -28,33 +27,19 @@ read_distro() {
     DISTRO_ID=$id
     DISTRO_VERSION=$version
     case $id in
-        arch|artix|manjaro|endeavouros|cachyos|archlinux) DISTRO=arch ;;
         fedora) DISTRO=fedora ;;
         *)
             case " $like " in
-                *' arch '*|*' archlinux '*) DISTRO=arch ;;
                 *' fedora '*) DISTRO=fedora ;;
             esac
             ;;
     esac
 }
 
-# $1 is a path relative to system/. True when this distro must not copy it.
-distro_skips() {
-    case ${DISTRO:-unknown} in
-        fedora)
-            [[ $1 == etc/mkinitcpio.conf.d/* || $1 == etc/default/grub.d/* ]]
-            ;;
-        *)
-            [[ $1 == etc/dracut.conf.d/* ]]
-            ;;
-    esac
-}
+# Nothing under system/ is distro-conditional: the tree is the Fedora one.
+distro_skips() { return 1; }
 
-desk_line() {
-    if [[ $DISTRO == fedora ]]; then printf 'a desk for Fedora and Hyprland'
-    else printf 'a desk for Arch Linux and Hyprland'; fi
-}
+desk_line() { printf 'a desk for Fedora and Hyprland'; }
 
 # One name a line. $2 is required, optional or all. A leading `?` marks
 # an optional name; `#` comments are dropped first.
@@ -140,6 +125,9 @@ dnf_has() {
             rpm -q tuned-ppd >/dev/null 2>&1 && return 0
             rpm -q --whatprovides ppd-service >/dev/null 2>&1 && return 0
             command -v powerprofilesctl >/dev/null && return 0
+            ;;
+        hyprland-devel)
+            rpm -q "hyprland-devel-${HYPRLAND_PIN:-0.57.1}" >/dev/null 2>&1 && return 0
             ;;
     esac
     return 1
@@ -311,29 +299,72 @@ verb_packages_fedora() {
     fedora_still_missing
 }
 
+# The release this desk was run on. The sdegler COPR publishes it as
+# hyprland-0.57.1, beside GNOME and beside an older Hyprland.
+HYPRLAND_PIN=0.57.1
+HYPRLAND_COPR=sdegler/hyprland
+
+# Enable the pin's COPR, refuse a transaction that would downgrade Qt,
+# and install the names in "$@".
+fedora_hyprland_from_copr() {
+    local -a pkgs=("$@")
+    (( ${#pkgs[@]} )) || return 0
+    if (( DRY )); then
+        say "would install ${pkgs[*]} from $HYPRLAND_COPR"
+        return 0
+    fi
+    local was=0
+    copr_enabled "$HYPRLAND_COPR" && was=1
+    if (( ! was )) && ! sudo dnf copr enable -y "$HYPRLAND_COPR"; then
+        say "skipped  ${pkgs[*]} — could not enable $HYPRLAND_COPR"
+        return 1
+    fi
+    if copr_downgrades_qt "${pkgs[@]}"; then
+        say "skipped  ${pkgs[*]} — $HYPRLAND_COPR would downgrade Qt"
+        (( was )) || sudo dnf copr disable -y "$HYPRLAND_COPR" >/dev/null 2>&1 || true
+        return 1
+    fi
+    if sudo dnf install -y "${pkgs[@]}"; then
+        return 0
+    fi
+    say "skipped  ${pkgs[*]} — $HYPRLAND_COPR did not install them"
+    (( was )) || sudo dnf copr disable -y "$HYPRLAND_COPR" >/dev/null 2>&1 || true
+    return 1
+}
+
+# Headers for the running 0.57.1. An older compositor is not given this
+# devel package: that would put 0.57.1's files next to a desk that stays.
+fedora_hyprland_devel() {
+    rpm -q "hyprland-devel-$HYPRLAND_PIN" >/dev/null 2>&1 && return 0
+    local pc=
+    if command -v pkg-config >/dev/null; then
+        pc=$(pkg-config --modversion hyprland 2>/dev/null || true)
+    fi
+    if [[ -n $pc ]] && version_at_least "$pc" "$HYPRLAND_PIN"; then
+        return 0
+    fi
+    fedora_hyprland_from_copr "hyprland-devel-$HYPRLAND_PIN" \
+        && say "installed hyprland-devel $HYPRLAND_PIN"
+}
+
 fedora_hyprland() {
     local ver
     ver=$(hyprland_version || true)
     if [[ -n $ver ]]; then
         HYPRLAND_KEEP=1
-        if version_at_least "$ver" 0.56; then
+        if version_at_least "$ver" "$HYPRLAND_PIN"; then
             say "kept     hyprland $ver"
+            fedora_hyprland_devel
         else
-            say "left     hyprland $ver — Impasto needs 0.56 or newer, and this one stays"
+            say "left     hyprland $ver — Impasto needs $HYPRLAND_PIN, and this one stays"
         fi
         return 0
     fi
-    say 'checking whether the repositories have hyprland 0.56'
-    ver=$(dnf_pkg_version hyprland || true)
-    if [[ -n $ver ]] && version_at_least "$ver" 0.56; then
-        if (( DRY )); then
-            say "would install hyprland $ver"
-            return 0
-        fi
-        if sudo dnf install -y hyprland; then
-            HYPRLAND_KEEP=1
-            say "installed hyprland $ver"
-        fi
+    say "checking the $HYPRLAND_COPR COPR for hyprland $HYPRLAND_PIN"
+    if fedora_hyprland_from_copr "hyprland-$HYPRLAND_PIN" "hyprland-devel-$HYPRLAND_PIN"; then
+        HYPRLAND_KEEP=1
+        if (( DRY )); then return 0; fi
+        say "installed hyprland $HYPRLAND_PIN"
     fi
 }
 
@@ -342,15 +373,14 @@ fedora_hyprland_after() {
     (( HYPRLAND_KEEP )) && return 0
     ver=$(hyprland_version || true)
     if [[ -z $ver ]]; then
-        say 'skipped  hyprland — no Fedora build of 0.56 or newer could be installed without downgrading Qt'
+        say "skipped  hyprland — $HYPRLAND_PIN from $HYPRLAND_COPR was not installed"
         return 0
     fi
-    if version_at_least "$ver" 0.56; then
-        HYPRLAND_KEEP=1
+    HYPRLAND_KEEP=1
+    if version_at_least "$ver" "$HYPRLAND_PIN"; then
         say "installed hyprland $ver"
     else
-        HYPRLAND_KEEP=1
-        say "left     hyprland $ver — Impasto needs 0.56 or newer, and this one stays"
+        say "left     hyprland $ver — Impasto needs $HYPRLAND_PIN, and this one stays"
     fi
 }
 
@@ -367,7 +397,9 @@ fedora_copr() {
         read -ra pkgs <<< "$pkgs_rest"
         need=()
         for pkg in "${pkgs[@]}"; do
-            [[ $pkg == hyprland && $HYPRLAND_KEEP == 1 ]] && continue
+            # Hyprland itself comes from sdegler/hyprland at the pinned
+            # release. These COPRs only fill the tools still missing.
+            [[ $pkg == hyprland || $pkg == hyprland-devel ]] && continue
             dnf_has "$pkg" && continue
             command -v "$pkg" >/dev/null && continue
             need+=("$pkg")
@@ -668,8 +700,8 @@ fedora_selinux() {
     fi
 }
 
-# The virtual camera is opt-in. v4l2loopback is not in Fedora's own
-# repositories; the verb says so instead of calling pacman.
+# The virtual camera is opt-in. v4l2loopback is in RPM Fusion, not in
+# Fedora's own repositories.
 fedora_install_camera() {
     local -a pkgs=(python3-numpy python3-opencv kernel-devel)
     dnf_available akmod-v4l2loopback && pkgs+=(akmod-v4l2loopback)

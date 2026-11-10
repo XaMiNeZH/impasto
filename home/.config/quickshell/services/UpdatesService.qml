@@ -1,7 +1,7 @@
 // ╭──────────────────────────────────────────────────────────────────────────╮
 // │                                                                          │
 // │   U P D A T E S   S E R V I C E                                          │
-// │   pending packages · the repositories and the AUR                        │
+// │   pending packages · the Fedora repositories                             │
 // │                                                                          │
 // │   github.com/andreumassanet/impasto                                      │
 // │                                                                          │
@@ -13,11 +13,8 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 
-// Counts pending updates (repositories and AUR) with `updates.py`. Nothing is
-// installed from here; the packages panel opens a terminal for that.
-//
-// `tool` records which source answered: checkupdates (synced to a temporary
-// database) or, without it, the local database as last synced.
+// Counts pending updates with `updates.py`. Nothing is installed from
+// here; the packages panel opens a terminal for `dnf upgrade`.
 Singleton {
     id: root
 
@@ -30,10 +27,9 @@ Singleton {
 
     property int count: 0
     property var packages: []
-    // `{ name, from, to, source }`, source "repo" or "aur". `packages` holds
-    // only the first few names, for the module's single line.
+    // `{ name, from, to, source }`, source "repo". `packages` holds only
+    // the first few names, for the module's single line.
     property var updates: []
-    // Whether the AUR answered; offline the count covers the repositories only.
     property bool aur: false
     property string tool: ""
     property real checkedAt: 0
@@ -105,7 +101,7 @@ Singleton {
                 root.updates = report.updates ?? []
                 root.aur = report.aur === true
                 root.tool = report.tool ?? ""
-                if (report.manager === "dnf" || report.manager === "pacman")
+                if (report.manager === "dnf")
                     PackagesService.manager = report.manager
                 root.checkedAt = Date.now()
             }

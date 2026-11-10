@@ -15,8 +15,8 @@ import "../../theme"
 import "../../services"
 import "../../components"
 
-// Three lists under one field: updates, installed, and what the repositories
-// and the AUR offer, switched on the right of the field or with Tab. The field
+// Three lists under one field: updates, installed, and what the Fedora
+// repositories offer, switched on the right of the field or with Tab. The field
 // filters the first two and searches the third. Laid out like the launcher,
 // plus a status line at the bottom.
 //
@@ -154,9 +154,7 @@ ColumnLayout {
                 if (root.view === "installed")
                     return !PackagesService.loaded ? "Reading the database…" : "Nothing installed is called that."
                 if (term === "")
-                    return PackagesService.manager === "dnf"
-                        ? "Type a name — the repositories answer."
-                        : "Type a name — the repositories and the AUR both answer."
+                    return "Type a name — the repositories answer."
                 if (term.length < 2)
                     return "Two letters at least."
                 if (PackagesService.searching || term !== PackagesService.foundTerm)
@@ -223,7 +221,7 @@ ColumnLayout {
                     spacing: 12
 
                     // The row's kind in a disc: pending, installed or
-                    // available, with AUR packages in the accent.
+                    // available, with COPR packages in the accent.
                     Rectangle {
                         Layout.preferredWidth: 26
                         Layout.preferredHeight: 26
@@ -269,8 +267,7 @@ ColumnLayout {
                             }
 
                             // The source, when known: the repository a search
-                            // found it in, or the AUR, which is worth checking
-                            // before installing.
+                            // found it in, or COPR.
                             Text {
                                 readonly property string label: row.aur ? PackagesService.foreignName
                                     : (root.view === "find" ? row.modelData.source : "")
@@ -334,7 +331,7 @@ ColumnLayout {
                         }
                     }
 
-                    // Installed size, or an AUR package's popularity.
+                    // Installed size. A search row has none.
                     Text {
                         visible: !row.update && !action.visible && text !== ""
                         // Meta packages have no size, and "0.00 B" would look
@@ -412,13 +409,7 @@ ColumnLayout {
             elide: Text.ElideRight
             text: {
                 if (root.view === "updates") {
-                    const aur = UpdatesService.updates.filter(row => row.source === "aur").length
-                    // The fallback reads the last-synced database, so zero
-                    // from it does not mean up to date.
-                    const parts = [`${UpdatesService.count - aur} from the repositories`
-                        + (UpdatesService.tool === "pacman" ? " as of the last sync" : "")]
-                    if (PackagesService.manager !== "dnf")
-                        parts.push(UpdatesService.aur ? `${aur} from the AUR` : "the AUR did not answer")
+                    const parts = [`${UpdatesService.count} from the repositories`]
                     if (UpdatesService.checking)
                         parts.push("checking…")
                     else if (UpdatesService.age !== "")
@@ -428,23 +419,11 @@ ColumnLayout {
                 if (root.view === "installed")
                     return PackagesService.term !== ""
                         ? `${root.rows.length} of ${PackagesService.installed.length}` : ""
-                if (PackagesService.foundTerm === "" || PackagesService.foundNote === "short") {
-                    if (PackagesService.manager === "dnf")
-                        return "Installed with dnf, in a terminal"
-                    return PackagesService.helper !== ""
-                        ? `Installed with ${PackagesService.helper}, in a terminal`
-                        : "No AUR helper — the repositories only"
-                }
-                if (PackagesService.manager === "dnf")
-                    return `${PackagesService.foundRepos} in the repositories`
-                const parts = [`${PackagesService.foundRepos} in the repositories`]
+                if (PackagesService.foundTerm === "" || PackagesService.foundNote === "short")
+                    return "Installed with dnf, in a terminal"
                 if (PackagesService.foundNote === "offline")
-                    parts.push("the AUR did not answer")
-                else if (PackagesService.foundNote === "prefix")
-                    parts.push(`the first ${PackagesService.foundAur} in the AUR that start with it`)
-                else
-                    parts.push(`${PackagesService.foundAur} in the AUR`)
-                return parts.join(" · ")
+                    return "dnf did not answer"
+                return `${PackagesService.foundRepos} in the repositories`
             }
             horizontalAlignment: root.view === "installed" ? Text.AlignRight : Text.AlignLeft
             font.family: Theme.fontFamily

@@ -552,7 +552,7 @@ Singleton {
     // ── AVAILABILITY ────────────────────────────────────────────────────────
     //
     // Whether this machine can show the module at all (a backlight, a player
-    // on the bus, pacman-contrib installed). Not a preference; placement is
+    // on the bus, dnf installed). Not a preference; placement is
     // the layout's job.
     function has(id: string): bool {
         if (id === "capture")
@@ -606,7 +606,7 @@ Singleton {
             // Recording from boot; an empty day still reads 0:00.
             return true
         case "updates":
-            // False on a machine with neither checkupdates nor pacman.
+            // False when dnf does not answer.
             return UpdatesService.available
         case "pet":
             // `ready` is constant true; reading it builds the service, and

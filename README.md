@@ -9,8 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/andreumassanet/impasto/actions/workflows/check.yml"><img src="https://github.com/andreumassanet/impasto/actions/workflows/check.yml/badge.svg" alt="check"></a>
-  <img src="https://img.shields.io/badge/Arch_Linux-1793d1?style=flat-square&logo=archlinux&logoColor=white" alt="Arch Linux">
+  <a href="https://github.com/XaMiNeZH/impasto/actions/workflows/check.yml"><img src="https://github.com/XaMiNeZH/impasto/actions/workflows/check.yml/badge.svg" alt="check"></a>
   <img src="https://img.shields.io/badge/Fedora-51a2da?style=flat-square&logo=fedora&logoColor=white" alt="Fedora">
   <img src="https://img.shields.io/badge/Hyprland-Lua_config-58e1ff?style=flat-square&logo=hyprland&logoColor=white" alt="Hyprland">
   <img src="https://img.shields.io/badge/Quickshell-0.3-000000?style=flat-square" alt="Quickshell">
@@ -134,28 +133,65 @@ screen and the boot splash are the same design, before there is a session.
 
 ## Installation
 
-Arch Linux or Fedora 43 or newer, and Hyprland 0.56 or newer, from a terminal
-or a console:
+Fedora 43 or newer, from a terminal. The desk runs on **Hyprland 0.57.1**.
+The package is published for Fedora 44 and 45 by the `sdegler/hyprland` COPR;
+Fedora 43 does not have a finished build of that release. A machine that
+already has 0.57.1, including one that also runs GNOME, is left alone. An
+older Hyprland is reported and not replaced.
+
+Create the account with the `wheel` group only. `i2c` is not there until
+the backlight tools are installed, and `./setup` adds it later when the
+group exists:
 
 ```bash
-git clone https://github.com/andreumassanet/impasto.git ~/impasto
+sudo useradd -m -G wheel impasto
+git clone https://github.com/XaMiNeZH/impasto.git ~/impasto
 cd ~/impasto
 ./setup install
 ```
 
-`./setup` reads `/etc/os-release` and installs with pacman on Arch or dnf on
-Fedora. It copies `home/` and `system/` into place, and sets up the login
-screen, the plugins and the programs around the shell. Run `./setup` alone to
-pick from a menu instead.
+`./setup` installs with dnf. It copies `home/` and `system/` into place, and
+sets up the login screen, the plugins and the programs around the shell.
+Run `./setup` alone to pick from a menu instead.
 
-On Fedora, a Hyprland that is already installed is left as it is. One older
-than 0.56 is reported and not replaced. Quickshell has to be 0.3 or newer and
-built against the system Qt: a repository build that is older, or a COPR
-build that would downgrade Qt, is not installed, and 0.3 is built from source
-into `/usr/local` instead. Programs that are not in the Fedora repositories
-(Zen, Vesktop, VSCodium, Spotify, spicetify, quickemu) are skipped, with the
-reason, and the rest of the desk still installs. The boot splash uses dracut,
-not mkinitcpio.
+When Hyprland is missing, `./setup packages` enables `sdegler/hyprland` and
+installs `hyprland-0.57.1` and `hyprland-devel-0.57.1`. Check it with
+`hyprctl version`. Quickshell has to be 0.3 or newer (`qs --version`, or
+`quickshell --version`) and linked to the system Qt. A repository build that
+is older, or a COPR build that would downgrade Qt, is not installed, and 0.3
+is built from source into `/usr/local` instead.
+
+Programs that are not in the Fedora repositories are skipped, with the
+reason, and the rest of the desk still installs: Zen, Vesktop, VSCodium,
+Spotify, spicetify and quickemu. VSCodium can be installed from its upstream
+rpm, then `./setup vscodium`. The boot splash uses dracut and `grubby`.
+
+### Already installed, and something is missing
+
+If a previous run finished and the desk is short of packages or plugins,
+point the clone at this fork and run the two repair commands. `./setup plugins`
+has to run inside the Hyprland session:
+
+```bash
+cd ~/impasto
+git remote set-url origin https://github.com/XaMiNeZH/impasto.git
+git fetch origin
+git checkout main
+git pull origin main
+./setup packages
+```
+
+Then, from a terminal in Hyprland:
+
+```bash
+cd ~/impasto
+./setup plugins
+```
+
+Glass loads with refraction turned off. Open Settings with
+<kbd>SUPER</kbd> <kbd>,</kbd>, then Windows → Depth, and turn on
+**Refraction**. It shows through the terminal. A fully opaque window stays
+opaque.
 
 <details>
 <summary><b>Flags</b></summary>
@@ -167,7 +203,6 @@ not mkinitcpio.
 | `--skip-system` | leave `/` alone — no login screen, and no password for it |
 | `--skip-plugins` | no shake to find, no glass |
 | `--skip-extras` | leave Nautilus, VSCodium, Vesktop, Spotify, GTK, face unlock, the camera and the boot splash alone |
-| `--aur-helper yay\|paru` | Arch: which helper builds the AUR half — built from the AUR if you have neither. Fedora does not use it |
 | `--noconfirm` | take the default at every question |
 | `-n`, `--dry-run` | say what would happen, and do none of it |
 
@@ -211,7 +246,7 @@ never overwrites a file you edited.
 | 🔆 | Monitor brightness | [ddcutil](https://www.ddcutil.com) |
 | 🔑 | Login screen | [SDDM](https://github.com/sddm/sddm) |
 | 🎨 | Boot splash | [Plymouth](https://gitlab.freedesktop.org/plymouth/plymouth) |
-| 👤 | Face unlock | [howdy-next](https://codeberg.org/nathawat/howdy-next) |
+| 👤 | Face unlock | [howdy](https://github.com/boltgolt/howdy) |
 | 📷 | Camera effects | [MediaPipe](https://ai.google.dev/edge/mediapipe) · [v4l2loopback](https://github.com/umlaeute/v4l2loopback) |
 
 </details>
@@ -263,10 +298,10 @@ and [Rosé Pine](https://rosepinetheme.com).
 
 ## Star history
 
-<a href="https://star-history.com/#andreumassanet/impasto&Date">
+<a href="https://star-history.com/#XaMiNeZH/impasto&Date">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=andreumassanet/impasto&type=Date&theme=dark">
-    <img src="https://api.star-history.com/svg?repos=andreumassanet/impasto&type=Date" alt="Star history of impasto" width="100%">
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=XaMiNeZH/impasto&type=Date&theme=dark">
+    <img src="https://api.star-history.com/svg?repos=XaMiNeZH/impasto&type=Date" alt="Star history of impasto" width="100%">
   </picture>
 </a>
 
