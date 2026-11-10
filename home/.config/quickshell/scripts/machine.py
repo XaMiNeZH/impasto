@@ -67,13 +67,28 @@ def login_shell(record):
 
 
 def packages():
-    """How many packages pacman has installed: one directory each in its
-    local database, the way fastfetch counts them. No pacman, no number."""
-    try:
-        with os.scandir(PACMAN_LOCAL) as entries:
-            return sum(1 for entry in entries if entry.is_dir())
-    except OSError:
-        return None
+    """How many packages are installed.
+
+    pacman counts one directory per package in its local database, the way
+    fastfetch does. Fedora has no such directory; `rpm -qa` is one name a
+    line. Neither tool, no number.
+    """
+    if os.path.isdir(PACMAN_LOCAL):
+        try:
+            with os.scandir(PACMAN_LOCAL) as entries:
+                return sum(1 for entry in entries if entry.is_dir())
+        except OSError:
+            return None
+    if shutil.which("rpm"):
+        try:
+            result = subprocess.run(
+                ["rpm", "-qa"], capture_output=True, text=True, timeout=30, check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return None
+        if result.returncode == 0:
+            return sum(1 for line in result.stdout.splitlines() if line.strip())
+    return None
 
 
 def machine():

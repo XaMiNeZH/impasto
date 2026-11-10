@@ -38,7 +38,13 @@ Singleton {
     // It has been answered, either way; the island closes.
     signal settled()
 
-    readonly property string fallback: "/usr/lib/polkit-kde-authentication-agent-1"
+    // Arch installs the agent under /usr/lib. Fedora's kf6 package installs
+    // it under /usr/libexec/kf6. The first one that is executable wins.
+    readonly property var fallbacks: [
+        "/usr/lib/polkit-kde-authentication-agent-1",
+        "/usr/libexec/kf6/polkit-kde-authentication-agent-1",
+        "/usr/libexec/polkit-kde-authentication-agent-1"
+    ]
     readonly property int tries: 3
     property int tried: 0
 
@@ -91,7 +97,8 @@ Singleton {
                 return
             root.tried += 1
             if (root.tried >= root.tries) {
-                Quickshell.execDetached(["sh", "-c", `test -x ${root.fallback} && exec ${root.fallback}`])
+                Quickshell.execDetached(["sh", "-c",
+                    root.fallbacks.map(path => `test -x ${path} && exec ${path}`).join("; ")])
                 return
             }
             holder.active = false

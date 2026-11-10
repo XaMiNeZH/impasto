@@ -76,7 +76,8 @@ Item {
                     required property var modelData
 
                     name: modelData.name
-                    value: modelData.source === "aur" ? `${modelData.to} · AUR` : modelData.to
+                    value: modelData.source === "aur"
+                        ? `${modelData.to} · ${PackagesService.foreignName}` : modelData.to
                 }
             }
 
