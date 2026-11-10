@@ -551,16 +551,19 @@ fedora_plugin_deps() {
     [[ $DISTRO == fedora ]] || return 0
     command -v dnf >/dev/null || return 0
     local -a need=() name
-    for name in cmake meson gcc-c++ cpio pkgconf; do
-        dnf_has "$name" || need+=("$name")
+    # hyprpm looks for pkg-config and g++, which Fedora names
+    # pkgconf-pkg-config and gcc-c++. hyprwayland-scanner is its own rpm.
+    for name in cmake meson gcc gcc-c++ git cpio pkgconf pkgconf-pkg-config \
+            hyprwayland-scanner hyprland-devel; do
+        dnf_has "$name" && continue
+        need+=("$name")
     done
-    if ! dnf_has hyprland-devel && dnf_available hyprland-devel; then
-        need+=(hyprland-devel)
-    fi
     (( ${#need[@]} )) || return 0
     say "missing: ${need[*]}"
     if (( DRY )); then return 0; fi
-    sudo dnf install -y "${need[@]}" || say 'skipped  some plugin build packages were not installed'
+    fedora_dnf_install "${need[@]}"
+    command -v hyprwayland-scanner >/dev/null || \
+        say 'skipped  hyprwayland-scanner — hyprpm cannot build the plugins without it'
 }
 
 fedora_i2c_group() {

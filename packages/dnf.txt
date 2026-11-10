@@ -126,6 +126,7 @@ gcc-c++
 make
 ninja-build
 pkgconf
+pkgconf-pkg-config           # the pkg-config binary hyprpm looks for
 
 
 # ── LOGIN SCREEN ────────────────────────────────────────────────────────────
@@ -160,6 +161,7 @@ tar
 ? xdg-desktop-portal-hyprland
 ? hyprland
 ? hyprland-devel
+? hyprwayland-scanner
 ? hyprpm
 ? hyprpicker
 ? hyprsunset
