@@ -924,6 +924,7 @@ verb_plugins() {
     fi
     say 'building shake to find and glass: your password, once'
     if (( ! DRY )); then hold_sudo; fi
+    fedora_link_libs
     # The headers first, and a rebuild of what is there when Hyprland has
     # changed under it, even by a package rebuild of the same version.
     act hyprpm update
