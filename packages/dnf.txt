@@ -60,7 +60,7 @@ brightnessctl
 ddcutil
 NetworkManager
 bluez
-power-profiles-daemon
+power-profiles-daemon        # skipped when tuned-ppd already provides ppd-service
 upower
 
 
@@ -82,7 +82,7 @@ btop
 cava
 imv
 mpv
-ffmpeg-free
+ffmpeg-free                  # skipped when RPM Fusion's ffmpeg is already installed
 asciiquarium
 
 

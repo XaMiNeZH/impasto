@@ -124,8 +124,47 @@ quickshell_version() {
 }
 
 dnf_has() {
+    local name=$1
     command -v rpm >/dev/null || return 1
-    rpm -q "$1" >/dev/null 2>&1
+    rpm -q "$name" >/dev/null 2>&1 && return 0
+    # RPM Fusion's ffmpeg provides ffmpeg-free. tuned-ppd provides the
+    # power-profiles D-Bus name. Asking dnf to install the Fedora names
+    # beside them fails the whole transaction.
+    rpm -q --whatprovides "$name" >/dev/null 2>&1 && return 0
+    case $name in
+        ffmpeg-free)
+            rpm -q ffmpeg >/dev/null 2>&1 && return 0
+            command -v ffmpeg >/dev/null && return 0
+            ;;
+        power-profiles-daemon)
+            rpm -q tuned-ppd >/dev/null 2>&1 && return 0
+            rpm -q --whatprovides ppd-service >/dev/null 2>&1 && return 0
+            command -v powerprofilesctl >/dev/null && return 0
+            ;;
+    esac
+    return 1
+}
+
+# Install what is missing. Never --allowerasing: that would remove the
+# user's ffmpeg or tuned-ppd to make room for Fedora's names. A package
+# that conflicts is skipped so the rest of the desk still lands.
+fedora_dnf_install() {
+    local pkg
+    local -a pkgs=("$@")
+    (( ${#pkgs[@]} )) || return 0
+    if (( DRY )); then return 0; fi
+    if sudo dnf install -y --skip-unavailable --skip-broken "${pkgs[@]}"; then
+        return 0
+    fi
+    say 'the one transaction could not resolve — installing each package on its own'
+    for pkg in "${pkgs[@]}"; do
+        dnf_has "$pkg" && continue
+        if sudo dnf install -y --skip-unavailable "$pkg"; then
+            say "installed $pkg"
+        else
+            say "skipped  $pkg — it conflicts with something already installed, or dnf would not take it"
+        fi
+    done
 }
 
 # dnf with the keyboard closed, so a GPG or metadata prompt cannot hang
@@ -228,8 +267,7 @@ verb_packages_fedora() {
     done
     if (( ${#missing[@]} )); then
         say "missing: ${missing[*]}"
-        act sudo dnf install -y --skip-unavailable "${missing[@]}" \
-            || fail 'dnf could not install the Fedora packages'
+        fedora_dnf_install "${missing[@]}"
     else
         say "all ${#want[@]} installed"
     fi
@@ -253,8 +291,7 @@ verb_packages_fedora() {
     fi
     if (( ${#installable[@]} )); then
         say "missing: ${installable[*]}"
-        act sudo dnf install -y --skip-unavailable "${installable[@]}" \
-            || say 'skipped  some optional packages were not installable'
+        fedora_dnf_install "${installable[@]}"
     elif (( DRY && ${#check[@]} )); then
         :
     elif (( ! ${#optional[@]} )); then

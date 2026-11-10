@@ -28,6 +28,11 @@ EOF
 cat > "$work/bin/rpm" <<'EOF'
 #!/bin/bash
 printf '%s\n' "$*" >> "${IMPASTO_LOG:?}"
+# A Fedora machine that already has RPM Fusion ffmpeg and tuned-ppd.
+if [[ ${1:-} == -q && ${2:-} == ffmpeg ]]; then exit 0; fi
+if [[ ${1:-} == -q && ${2:-} == tuned-ppd ]]; then exit 0; fi
+if [[ ${1:-} == -q && ${2:-} == --whatprovides && ${3:-} == ffmpeg-free ]]; then exit 0; fi
+if [[ ${1:-} == -q && ${2:-} == --whatprovides && ${3:-} == ppd-service ]]; then exit 0; fi
 exit 1
 EOF
 cat > "$work/bin/pacman" <<'EOF'
@@ -117,6 +122,10 @@ fedora_out=$(run_setup fedora packages --dry-run --noconfirm)
 grep -q 'kept     hyprland 0.56.1' <<<"$fedora_out"
 grep -q 'would build quickshell' <<<"$fedora_out"
 grep -q 'would try COPR' <<<"$fedora_out"
+if grep -E 'missing:.*ffmpeg-free|missing:.*power-profiles-daemon' <<<"$fedora_out"; then
+    echo "fedora asked for packages already provided by ffmpeg or tuned-ppd" >&2
+    exit 1
+fi
 if grep -q '── pacman' <<<"$fedora_out"; then
     echo "fedora took the pacman path" >&2
     exit 1
