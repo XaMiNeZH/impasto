@@ -1,5 +1,5 @@
 #!/bin/bash
-# Plans for Arch and Fedora, with the package tools replaced by stubs.
+# Fedora install plans, with dnf and rpm replaced by stubs.
 # Nothing is installed. A fake os-release selects the distro.
 set -euo pipefail
 
@@ -35,19 +35,10 @@ if [[ ${1:-} == -q && ${2:-} == --whatprovides && ${3:-} == ffmpeg-free ]]; then
 if [[ ${1:-} == -q && ${2:-} == --whatprovides && ${3:-} == ppd-service ]]; then exit 0; fi
 exit 1
 EOF
-cat > "$work/bin/pacman" <<'EOF'
-#!/bin/bash
-printf '%s\n' "$*" >> "${IMPASTO_LOG:?}"
-if [[ ${1:-} == -T ]]; then
-    shift
-    printf '%s\n' "$@"
-fi
-exit 0
-EOF
 cat > "$work/bin/hyprland" <<'EOF'
 #!/bin/bash
-if [[ ${1:-} == --version ]]; then
-    printf 'Hyprland %s built from commit abc\n' "${IMPASTO_HYPRLAND_VERSION:-0.56.1}"
+if [[ ${1:-} == --version && ${IMPASTO_HYPRLAND_VERSION:-} != none ]]; then
+    printf 'Hyprland %s built from commit abc\n' "${IMPASTO_HYPRLAND_VERSION:-0.57.1}"
 fi
 exit 0
 EOF
@@ -60,21 +51,12 @@ cat > "$work/bin/dracut" <<'EOF'
 #!/bin/bash
 exit 0
 EOF
-cat > "$work/bin/mkinitcpio" <<'EOF'
-#!/bin/bash
-exit 0
-EOF
 chmod 755 "$work/bin/"*
 
 cat > "$work/os/fedora" <<'EOF'
 NAME="Fedora Linux"
 ID=fedora
-VERSION_ID=43
-EOF
-cat > "$work/os/arch" <<'EOF'
-NAME="Arch Linux"
-ID=arch
-ID_LIKE=archlinux
+VERSION_ID=45
 EOF
 cat > "$work/os/debian" <<'EOF'
 NAME="Debian GNU/Linux"
@@ -83,10 +65,9 @@ ID_LIKE=debian
 EOF
 
 theme="$work/root/usr/share/plymouth/themes/impasto"
-mkdir -p "$theme" "$work/root/etc/dracut.conf.d" "$work/root/etc/mkinitcpio.conf.d"
+mkdir -p "$theme" "$work/root/etc/dracut.conf.d"
 printf 'theme\n' > "$theme/impasto.plymouth"
 printf 'plymouth\n' > "$work/root/etc/dracut.conf.d/impasto.conf"
-printf 'plymouth\n' > "$work/root/etc/mkinitcpio.conf.d/impasto.conf"
 
 run_setup() {
     local release=$1
@@ -104,22 +85,14 @@ run_setup() {
         "$root/setup" "$@"
 }
 
-echo "arch plans pacman"
-arch_out=$(run_setup arch packages --dry-run --noconfirm)
-grep -q 'pacman' <<<"$arch_out"
-grep -q 'aur' <<<"$arch_out"
-if grep -q 'fedora extras' <<<"$arch_out"; then
-    echo "arch took the Fedora package path" >&2
+echo "fedora keeps hyprland 0.57.1 and plans dnf"
+fedora_out=$(IMPASTO_HYPRLAND_VERSION=0.57.1 run_setup fedora packages --dry-run --noconfirm)
+grep -q 'kept     hyprland 0.57.1' <<<"$fedora_out"
+grep -q 'would install hyprland-devel-0.57.1 from sdegler/hyprland' <<<"$fedora_out"
+if grep -q 'would install hyprland-0.57.1 ' <<<"$fedora_out"; then
+    echo "fedora offered to replace an existing 0.57.1" >&2
     exit 1
 fi
-if grep -q '^install ' "$work/log"; then
-    echo "dry-run invoked an installer" >&2
-    exit 1
-fi
-
-echo "fedora plans dnf and keeps hyprland 0.56"
-fedora_out=$(run_setup fedora packages --dry-run --noconfirm)
-grep -q 'kept     hyprland 0.56.1' <<<"$fedora_out"
 grep -q 'would build quickshell' <<<"$fedora_out"
 grep -q 'would try COPR' <<<"$fedora_out"
 if grep -E 'missing:.*ffmpeg-free|missing:.*power-profiles-daemon' <<<"$fedora_out"; then
@@ -127,7 +100,7 @@ if grep -E 'missing:.*ffmpeg-free|missing:.*power-profiles-daemon' <<<"$fedora_o
     exit 1
 fi
 if grep -q '── pacman' <<<"$fedora_out"; then
-    echo "fedora took the pacman path" >&2
+    echo "fedora took a pacman path" >&2
     exit 1
 fi
 if grep -E '(^| )install( |$)' "$work/log" | grep -q .; then
@@ -136,24 +109,28 @@ if grep -E '(^| )install( |$)' "$work/log" | grep -q .; then
     exit 1
 fi
 if grep -q 'for: hyprland ' <<<"$fedora_out" || grep -q 'for: hyprland$' <<<"$fedora_out"; then
-    echo "fedora offered to replace a new enough hyprland" >&2
+    echo "a COPR line offered to replace the pinned hyprland" >&2
     exit 1
 fi
 
 echo "fedora leaves an older hyprland installed"
 old_out=$(IMPASTO_HYPRLAND_VERSION=0.51.0 run_setup fedora packages --dry-run --noconfirm)
-grep -q 'left     hyprland 0.51.0' <<<"$old_out"
+grep -q 'left     hyprland 0.51.0 — Impasto needs 0.57.1, and this one stays' <<<"$old_out"
 if grep -q 'would install hyprland' <<<"$old_out"; then
     echo "fedora offered to replace an older hyprland" >&2
     exit 1
 fi
 
-echo "an unknown distro is refused"
+echo "fedora installs 0.57.1 when hyprland is missing"
+missing_out=$(IMPASTO_HYPRLAND_VERSION=none run_setup fedora packages --dry-run --noconfirm)
+grep -q 'would install hyprland-0.57.1 hyprland-devel-0.57.1 from sdegler/hyprland' <<<"$missing_out"
+
+echo "anything that is not Fedora is refused"
 if run_setup debian packages --dry-run --noconfirm >"$work/debian.out" 2>"$work/debian.err"; then
     echo "debian was accepted" >&2
     exit 1
 fi
-grep -q 'Arch Linux and Fedora' "$work/debian.err"
+grep -q 'impasto installs on Fedora' "$work/debian.err"
 
 echo "fedora splash uses dracut"
 splash_out=$(run_setup fedora splash --dry-run --noconfirm)
@@ -163,19 +140,11 @@ if grep -q 'mkinitcpio' <<<"$splash_out"; then
     exit 1
 fi
 
-echo "fedora system files skip mkinitcpio"
+echo "fedora system files include the dracut drop-in"
 system_out=$(run_setup fedora system --dry-run --noconfirm)
 grep -q 'etc/dracut.conf.d/impasto.conf' <<<"$system_out"
 if grep -q 'mkinitcpio' <<<"$system_out"; then
     echo "fedora deploy copied mkinitcpio" >&2
-    exit 1
-fi
-
-echo "arch system files skip dracut"
-arch_system=$(run_setup arch system --dry-run --noconfirm)
-grep -q 'etc/mkinitcpio.conf.d/impasto.conf' <<<"$arch_system"
-if grep -q 'dracut.conf' <<<"$arch_system"; then
-    echo "arch deploy copied the dracut drop-in" >&2
     exit 1
 fi
 
