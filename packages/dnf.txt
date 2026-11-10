@@ -191,6 +191,7 @@ tar
 ? libwebp-devel
 ? libliftoff-devel
 ? seatd-devel
+? muparser-devel
 ? hyprpicker
 ? hyprsunset
 ? satty
