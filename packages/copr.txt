@@ -11,11 +11,12 @@
 # · ask it for. A line is skipped when every name is already installed.
 # · The repository is enabled only for the transaction, and disabled again
 # · when that transaction would downgrade qt6-qtbase or installs nothing.
-# · Hyprland is left untouched when a copy is already on the machine.
+# · Hyprland 0.57.1 is installed by ./setup from sdegler/hyprland.
+# · These lines are the tools around it, and only the ones still missing.
 
-nett00n/hyprland hyprland hyprland-devel xdg-desktop-portal-hyprland hyprpicker hyprsunset hyprcursor satty swww mpvpaper
-lionheartp/Hyprland hyprland hyprland-devel xdg-desktop-portal-hyprland hyprpicker hyprsunset hyprcursor satty swww mpvpaper
-eli-xciv/hyprland hyprland hyprland-devel hyprpicker hyprsunset satty swww mpvpaper
+nett00n/hyprland xdg-desktop-portal-hyprland hyprpicker hyprsunset hyprcursor satty swww mpvpaper
+lionheartp/Hyprland xdg-desktop-portal-hyprland hyprpicker hyprsunset hyprcursor satty swww mpvpaper
+eli-xciv/hyprland hyprpicker hyprsunset satty swww mpvpaper
 scottames/awww awww swww
 atim/starship starship
 varlad/yazi yazi
