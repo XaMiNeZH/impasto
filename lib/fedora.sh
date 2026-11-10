@@ -128,21 +128,59 @@ dnf_has() {
     rpm -q "$1" >/dev/null 2>&1
 }
 
+# dnf with the keyboard closed, so a GPG or metadata prompt cannot hang
+# with nothing on the screen. A timeout beats a lock held by GNOME Software.
+dnf_cmd() {
+    if command -v timeout >/dev/null; then
+        timeout --foreground 90 dnf "$@" </dev/null
+    else
+        dnf "$@" </dev/null
+    fi
+}
+
+# Prefer the cache so a dry run and the extras pass do not wait on the
+# network. Fall back to a refresh when the cache cannot answer.
+dnf_repoquery() {
+    dnf_cmd --cacheonly -q repoquery --available "$@" 2>/dev/null \
+        || dnf_cmd -C -q repoquery --available "$@" 2>/dev/null \
+        || dnf_cmd -q repoquery --available "$@" 2>/dev/null \
+        || true
+}
+
+dnf_first_line() {
+    local text=$1
+    text=${text%%$'\n'*}
+    printf '%s' "$text"
+}
+
 # True when a repository that is already enabled can see this name.
 dnf_available() {
     local out
-    out=$(dnf repoquery -q --available "$1" 2>/dev/null | head -1) || true
+    out=$(dnf_first_line "$(dnf_repoquery "$1")")
     [[ -n $out ]]
 }
 
 dnf_pkg_version() {
     local out
-    out=$(dnf repoquery -q --available --format '%{version}' "$1" 2>/dev/null | head -1) || true
+    out=$(dnf_first_line "$(dnf_repoquery --format '%{version}' "$1")")
     if [[ -z $out || $out == *'%'* ]]; then
-        out=$(dnf repoquery -q --available --qf '%{version}' "$1" 2>/dev/null | head -1) || true
+        out=$(dnf_first_line "$(dnf_repoquery --qf '%{version}' "$1")")
     fi
     [[ $out == *'%'* ]] && out=
     printf '%s' "$out"
+}
+
+# Names among "$@" that a repository currently offers, one per line.
+dnf_which_available() {
+    local out name
+    (( $# )) || return 0
+    out=$(dnf_repoquery --format '%{name}' "$@")
+    if [[ -z $out || $out == *'%'* ]]; then
+        out=$(dnf_repoquery --qf '%{name}' "$@")
+    fi
+    [[ $out == *'%'* ]] && out=
+    [[ -n $out ]] || return 0
+    printf '%s\n' "$out" | awk 'NF && $0 !~ /%/' | sort -u
 }
 
 # Names ./setup installs itself, so the optional pass does not race them.
@@ -197,17 +235,28 @@ verb_packages_fedora() {
     fi
 
     section 'fedora extras'
+    say 'checking optional packages'
     mapfile -t optional < <(manifest_names "$REPO/packages/dnf.txt" optional)
+    local -a check=()
     installable=()
     for name in "${optional[@]}"; do
         fedora_special "$name" && continue
         dnf_has "$name" && continue
-        if dnf_available "$name"; then installable+=("$name"); fi
+        check+=("$name")
     done
+    if (( ${#check[@]} )); then
+        if (( DRY )); then
+            say "would look for: ${check[*]}"
+        else
+            mapfile -t installable < <(dnf_which_available "${check[@]}")
+        fi
+    fi
     if (( ${#installable[@]} )); then
         say "missing: ${installable[*]}"
         act sudo dnf install -y --skip-unavailable "${installable[@]}" \
             || say 'skipped  some optional packages were not installable'
+    elif (( DRY && ${#check[@]} )); then
+        :
     elif (( ! ${#optional[@]} )); then
         say 'nothing optional listed'
     else
@@ -237,6 +286,7 @@ fedora_hyprland() {
         fi
         return 0
     fi
+    say 'checking whether the repositories have hyprland 0.56'
     ver=$(dnf_pkg_version hyprland || true)
     if [[ -n $ver ]] && version_at_least "$ver" 0.56; then
         if (( DRY )); then
@@ -328,6 +378,7 @@ fedora_quickshell() {
         say "kept     quickshell $ver"
         return 0
     fi
+    say 'checking whether the repositories have quickshell 0.3'
     ver=$(dnf_pkg_version quickshell || true)
     if [[ -n $ver ]] && version_at_least "$ver" 0.3; then
         if (( DRY )); then

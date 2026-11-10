@@ -14,6 +14,17 @@ cat > "$work/bin/dnf" <<'EOF'
 printf '%s\n' "$*" >> "${IMPASTO_LOG:?}"
 exit 0
 EOF
+cat > "$work/bin/timeout" <<'EOF'
+#!/bin/bash
+# Drop timeout's own flags so the stub PATH still reaches the dnf stub.
+while [[ ${1:-} == -* ]]; do
+    [[ $1 == -- ]] && { shift; break; }
+    [[ $1 == --foreground ]] && { shift; continue; }
+    shift
+done
+[[ ${1:-} =~ ^[0-9]+([.][0-9]+)?$ ]] && shift
+exec "$@"
+EOF
 cat > "$work/bin/rpm" <<'EOF'
 #!/bin/bash
 printf '%s\n' "$*" >> "${IMPASTO_LOG:?}"
