@@ -56,7 +56,21 @@ CONFIG = RUNTIME / "config.json"
 PIDFILE = RUNTIME / "serve.pid"
 SNAP = RUNTIME / "snap.request"
 MODELS = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share") / "impasto/camera"
-EMOJI_FONT = "/usr/share/fonts/noto/NotoColorEmoji.ttf"
+def emoji_font_path():
+    """A colour emoji font, Arch's path first and Fedora's after it."""
+    candidates = [
+        "/usr/share/fonts/noto/NotoColorEmoji.ttf",
+        "/usr/share/fonts/google-noto-color-emoji-fonts/NotoColorEmoji.ttf",
+        "/usr/share/fonts/google-noto-color-emoji-fonts/Noto-COLRv1.ttf",
+        "/usr/share/fonts/google-noto-emoji-fonts/NotoEmoji-Regular.ttf",
+    ]
+    for path in candidates:
+        if os.path.isfile(path):
+            return path
+    return candidates[0]
+
+
+EMOJI_FONT = emoji_font_path()
 MODEL_FILES = ["face_landmarker.task", "gesture_recognizer.task", "selfie_segmenter.tflite"]
 
 # V4L2, from linux/videodev2.h and v4l2loopback.c.

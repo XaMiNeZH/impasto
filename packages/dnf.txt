@@ -1,0 +1,219 @@
+# ╭──────────────────────────────────────────────────────────────────────────╮
+# │                                                                          │
+# │   D N F                                                                  │
+# │   packages from the Fedora repositories                                  │
+# │                                                                          │
+# │   github.com/andreumassanet/impasto                                      │
+# │                                                                          │
+# ╰──────────────────────────────────────────────────────────────────────────╯
+
+# · `./setup packages` on Fedora installs whatever is missing with
+# · `dnf install`. `#` starts a comment anywhere on a line. A line that
+# · starts with `?` is optional: it is installed when the repositories
+# · have it, and its absence is not a failure. Hyprland, Quickshell and
+# · the wallpaper daemon are handled by name in `./setup`, because the
+# · Fedora builds of those are often too old or not packaged at all.
+
+
+# ── DESKTOP ─────────────────────────────────────────────────────────────────
+
+python3
+git
+curl
+ImageMagick                  # magick, which the palette board reads with
+grim
+dbus
+wl-clipboard
+gtk3
+libnotify
+fontconfig
+pipewire
+wireplumber
+playerctl
+xdg-desktop-portal-gtk
+xdg-user-dirs
+xdg-utils
+qt6ct
+qt6-qtmultimedia
+papirus-icon-theme
+rsms-inter-fonts
+jetbrains-mono-fonts
+adwaita-sans-fonts
+google-noto-sans-fonts
+google-noto-color-emoji-fonts
+unicode-emoji
+cldr-emoji-annotation
+iso-codes
+google-noto-sans-cjk-fonts
+
+
+# ── TERMINAL ────────────────────────────────────────────────────────────────
+
+kitty
+zsh
+less
+
+
+# ── QUICK CONTROLS ──────────────────────────────────────────────────────────
+
+brightnessctl
+ddcutil
+NetworkManager
+bluez
+power-profiles-daemon        # skipped when tuned-ppd already provides ppd-service
+upower
+
+
+# ── CAPTURE ─────────────────────────────────────────────────────────────────
+
+tesseract
+tesseract-langpack-eng
+wf-recorder
+pipewire-pulseaudio
+pulseaudio-utils             # pactl
+
+
+# ── TERMINAL PROGRAMS ───────────────────────────────────────────────────────
+
+fzf
+zoxide
+fastfetch
+btop
+cava
+imv
+mpv
+ffmpeg-free                  # skipped when RPM Fusion's ffmpeg is already installed
+asciiquarium
+
+
+# ── EDITOR ──────────────────────────────────────────────────────────────────
+
+neovim
+tree-sitter-cli
+ripgrep
+fd-find
+ruff
+nodejs-bash-language-server
+qt6-qtdeclarative            # qmlls6, when the package ships it
+
+
+# ── FILE MANAGER ────────────────────────────────────────────────────────────
+
+nautilus
+nautilus-python
+ffmpegthumbnailer
+gvfs
+
+
+# ── QT ──────────────────────────────────────────────────────────────────────
+
+polkit-kde
+kf6-kconfig                  # kreadconfig6
+
+
+# ── CURSOR ──────────────────────────────────────────────────────────────────
+
+hyprcursor
+
+
+# ── HYPRLAND PLUGINS ────────────────────────────────────────────────────────
+
+cmake
+meson
+cpio
+gcc
+gcc-c++
+make
+ninja-build
+pkgconf
+pkgconf-pkg-config           # the pkg-config binary hyprpm looks for
+
+
+# ── LOGIN SCREEN ────────────────────────────────────────────────────────────
+
+sddm
+plymouth
+plymouth-plugin-script
+accountsservice
+
+
+# ── FACE UNLOCK ─────────────────────────────────────────────────────────────
+
+v4l-utils
+
+
+# ── VIRTUAL MACHINES ────────────────────────────────────────────────────────
+
+qemu-kvm
+
+
+# ── DEVELOPMENT ─────────────────────────────────────────────────────────────
+
+lua
+inotify-tools
+tar
+
+
+# ── OPTIONAL ────────────────────────────────────────────────────────────────
+# · Present on some Fedora releases and not others. The installer asks the
+# · repositories and moves on.
+
+? xdg-desktop-portal-hyprland
+? hyprland
+? hyprland-devel
+? hyprwayland-scanner
+? hyprwayland-scanner-devel
+? hyprlang-devel
+? hyprutils-devel
+? hyprcursor-devel
+? hyprgraphics-devel
+? aquamarine-devel
+? hyprland-protocols
+? hyprland-protocols-devel
+? hyprwire-devel
+? readline-devel
+? lcms2-devel
+? glib2-devel
+? libXcursor-devel
+? glslang-devel
+? lua-devel
+? udis86-devel
+? mesa-libGLES-devel
+? mesa-libGL-devel
+? hyprpm
+? libuuid-devel
+? wayland-devel
+? wayland-protocols-devel
+? libeis-devel
+? mesa-libgbm-devel
+? mesa-libEGL-devel
+? re2-devel
+? pugixml-devel
+? libcanberra-devel
+? libdrm-devel
+? libxkbcommon-devel
+? pango-devel
+? cairo-devel
+? pixman-devel
+? libinput-devel
+? systemd-devel
+? tomlplusplus-devel
+? libdisplay-info-devel
+? libjpeg-turbo-devel
+? libwebp-devel
+? libliftoff-devel
+? libseat-devel
+? muParser-devel
+? sdbus-cpp-devel
+? hyprpicker
+? hyprsunset
+? satty
+? swww
+? awww
+? quickshell
+? starship
+? yazi
+? mpvpaper
+? wl-screenrec
+? fnm
+? lua-language-server

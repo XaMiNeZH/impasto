@@ -11,6 +11,7 @@
 <p align="center">
   <a href="https://github.com/andreumassanet/impasto/actions/workflows/check.yml"><img src="https://github.com/andreumassanet/impasto/actions/workflows/check.yml/badge.svg" alt="check"></a>
   <img src="https://img.shields.io/badge/Arch_Linux-1793d1?style=flat-square&logo=archlinux&logoColor=white" alt="Arch Linux">
+  <img src="https://img.shields.io/badge/Fedora-51a2da?style=flat-square&logo=fedora&logoColor=white" alt="Fedora">
   <img src="https://img.shields.io/badge/Hyprland-Lua_config-58e1ff?style=flat-square&logo=hyprland&logoColor=white" alt="Hyprland">
   <img src="https://img.shields.io/badge/Quickshell-0.3-000000?style=flat-square" alt="Quickshell">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-2e509e?style=flat-square" alt="GPL-3.0"></a>
@@ -133,7 +134,8 @@ screen and the boot splash are the same design, before there is a session.
 
 ## Installation
 
-Arch Linux and Hyprland 0.56 or newer, from a terminal or a console:
+Arch Linux or Fedora 43 or newer, and Hyprland 0.56 or newer, from a terminal
+or a console:
 
 ```bash
 git clone https://github.com/andreumassanet/impasto.git ~/impasto
@@ -141,9 +143,19 @@ cd ~/impasto
 ./setup install
 ```
 
-It installs what is missing, copies `home/` and `system/` into place, and sets
-up the login screen, the plugins and the programs around the shell. Run
-`./setup` alone to pick from a menu instead.
+`./setup` reads `/etc/os-release` and installs with pacman on Arch or dnf on
+Fedora. It copies `home/` and `system/` into place, and sets up the login
+screen, the plugins and the programs around the shell. Run `./setup` alone to
+pick from a menu instead.
+
+On Fedora, a Hyprland that is already installed is left as it is. One older
+than 0.56 is reported and not replaced. Quickshell has to be 0.3 or newer and
+built against the system Qt: a repository build that is older, or a COPR
+build that would downgrade Qt, is not installed, and 0.3 is built from source
+into `/usr/local` instead. Programs that are not in the Fedora repositories
+(Zen, Vesktop, VSCodium, Spotify, spicetify, quickemu) are skipped, with the
+reason, and the rest of the desk still installs. The boot splash uses dracut,
+not mkinitcpio.
 
 <details>
 <summary><b>Flags</b></summary>
@@ -155,7 +167,7 @@ up the login screen, the plugins and the programs around the shell. Run
 | `--skip-system` | leave `/` alone — no login screen, and no password for it |
 | `--skip-plugins` | no shake to find, no glass |
 | `--skip-extras` | leave Nautilus, VSCodium, Vesktop, Spotify, GTK, face unlock, the camera and the boot splash alone |
-| `--aur-helper yay\|paru` | which helper builds the AUR half — built from the AUR if you have neither |
+| `--aur-helper yay\|paru` | Arch: which helper builds the AUR half — built from the AUR if you have neither. Fedora does not use it |
 | `--noconfirm` | take the default at every question |
 | `-n`, `--dry-run` | say what would happen, and do none of it |
 

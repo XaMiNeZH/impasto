@@ -28,8 +28,29 @@ import sys
 import unicodedata
 import xml.etree.ElementTree as ElementTree
 
-SOURCE = "/usr/share/unicode/emoji/emoji-test.txt"
-ANNOTATIONS = "/usr/share/unicode/cldr/common/annotations"
+def first_existing(candidates):
+    """The first path that is there, or the first candidate when none are."""
+    for path in candidates:
+        if os.path.exists(path):
+            return path
+    return candidates[0]
+
+
+# Arch and Fedora ship emoji-test.txt on the same path. The annotation
+# directory is the same too when cldr-emoji-annotation (Fedora) or
+# unicode-cldr-annotations (Arch) is installed; the other candidates cover
+# a layout that puts the files one directory up.
+SOURCE = first_existing([
+    "/usr/share/unicode/emoji/emoji-test.txt",
+    "/usr/share/unicode/ucd/emoji/emoji-test.txt",
+])
+ANNOTATIONS = first_existing([
+    "/usr/share/unicode/cldr/common/annotations",
+    "/usr/share/unicode/cldr/annotations",
+])
+ISO_3166 = first_existing([
+    "/usr/share/iso-codes/json/iso_3166-1.json",
+])
 
 TONES = [chr(code) for code in range(0x1F3FB, 0x1F400)]
 VARIATION = "️"
@@ -66,7 +87,7 @@ def annotations(language):
 def countries(language):
     """Flag glyph -> country name in the language, from iso-codes."""
     try:
-        with open("/usr/share/iso-codes/json/iso_3166-1.json", encoding="utf-8") as source:
+        with open(ISO_3166, encoding="utf-8") as source:
             table = json.load(source)["3166-1"]
     except (OSError, ValueError, KeyError):
         return {}

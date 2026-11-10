@@ -105,6 +105,8 @@ Singleton {
                 root.updates = report.updates ?? []
                 root.aur = report.aur === true
                 root.tool = report.tool ?? ""
+                if (report.manager === "dnf" || report.manager === "pacman")
+                    PackagesService.manager = report.manager
                 root.checkedAt = Date.now()
             }
         }

@@ -6,6 +6,19 @@ on:
   pull_request:
 
 jobs:
+  fedora-packages:
+    name: fedora ${{ matrix.release }} packages
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        release: [43, 44, 45]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Every required dnf name resolves
+        run: docker run --rm -v "$PWD:/work" -w /work fedora:${{ matrix.release }} tests/dnf_manifest.sh
+
   check:
     runs-on: ubuntu-latest
     steps:
@@ -16,3 +29,9 @@ jobs:
 
       - name: Verify Python, Lua, zsh, bash, JSON and TOML syntax
         run: ./setup check
+
+      - name: Distro install plans
+        run: tests/distro.sh
+
+      - name: Package parser and wallpaper wrapper
+        run: python3 tests/test_dnf_parse.py

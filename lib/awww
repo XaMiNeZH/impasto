@@ -1,0 +1,3 @@
+#!/bin/sh
+# Impasto's wallpaper code calls awww. swww speaks the same commands.
+exec swww "$@"

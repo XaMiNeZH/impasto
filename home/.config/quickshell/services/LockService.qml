@@ -315,7 +315,7 @@ Singleton {
 
     readonly property Process faceCheck: Process {
         command: ["sh", "-c",
-            "test -f /etc/pam.d/impasto-face && test -f /usr/lib/security/pam_howdy.so"]
+            "test -f /etc/pam.d/impasto-face && { test -f /usr/lib/security/pam_howdy.so || test -f /usr/lib64/security/pam_howdy.so; }"]
         onExited: code => root.facePam = code === 0
     }
 
