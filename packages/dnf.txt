@@ -169,6 +169,7 @@ tar
 ? hyprgraphics-devel
 ? aquamarine-devel
 ? hyprland-protocols
+? hyprland-protocols-devel
 ? hyprpm
 ? libuuid-devel
 ? wayland-devel

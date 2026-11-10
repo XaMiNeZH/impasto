@@ -563,7 +563,7 @@ fedora_plugin_deps() {
             libwebp-devel libliftoff-devel libseat-devel muParser-devel \
             sdbus-cpp-devel \
             hyprlang-devel hyprutils-devel hyprcursor-devel hyprgraphics-devel \
-            aquamarine-devel hyprland-protocols; do
+            aquamarine-devel hyprland-protocols hyprland-protocols-devel; do
         dnf_has "$name" && continue
         need+=("$name")
     done
