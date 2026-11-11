@@ -178,7 +178,7 @@ tar
 ? glslang-devel
 ? lua-devel
 ? udis86-devel
-? mesa-libGLES-devel
+? libglvnd-devel
 ? mesa-libGL-devel
 ? hyprpm
 ? libuuid-devel
