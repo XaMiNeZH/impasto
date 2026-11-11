@@ -89,6 +89,10 @@ echo "fedora keeps hyprland 0.57.1 and plans dnf"
 fedora_out=$(IMPASTO_HYPRLAND_VERSION=0.57.1 run_setup fedora packages --dry-run --noconfirm)
 grep -q 'kept     hyprland 0.57.1' <<<"$fedora_out"
 grep -q 'would install hyprland-devel-0.57.1 from sdegler/hyprland' <<<"$fedora_out"
+if grep -q 'installed hyprland-devel' <<<"$fedora_out"; then
+    echo "dry-run claimed hyprland-devel was installed" >&2
+    exit 1
+fi
 if grep -q 'would install hyprland-0.57.1 ' <<<"$fedora_out"; then
     echo "fedora offered to replace an existing 0.57.1" >&2
     exit 1

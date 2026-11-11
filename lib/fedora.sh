@@ -343,8 +343,11 @@ fedora_hyprland_devel() {
     if [[ -n $pc ]] && version_at_least "$pc" "$HYPRLAND_PIN"; then
         return 0
     fi
-    fedora_hyprland_from_copr "hyprland-devel-$HYPRLAND_PIN" \
-        && say "installed hyprland-devel $HYPRLAND_PIN"
+    if fedora_hyprland_from_copr "hyprland-devel-$HYPRLAND_PIN"; then
+        # A dry run already said "would install". It did not.
+        if (( DRY )); then return 0; fi
+        say "installed hyprland-devel $HYPRLAND_PIN"
+    fi
 }
 
 fedora_hyprland() {
@@ -469,9 +472,16 @@ fedora_quickshell() {
         say 'would build quickshell from source into /usr/local'
         return 0
     fi
-    local -a deps=(cmake ninja-build gcc-c++ git qt6-qtbase-devel qt6-qtdeclarative-devel
-        qt6-qtwayland-devel qt6-qtsvg-devel wayland-devel wayland-protocols-devel
-        mesa-libGL-devel jemalloc-devel libunwind-devel pam-devel pkgconf)
+    # Quickshell 0.3's cmake asks for these by name. Qt's private headers,
+    # ShaderTools and CLI11 are separate packages on Fedora; without them
+    # the configure step stops and the desk is left without a shell.
+    local -a deps=(cmake ninja-build gcc-c++ git pkgconf
+        qt6-qtbase-devel qt6-qtbase-private-devel qt6-qtdeclarative-devel
+        qt6-qtwayland-devel qt6-qtsvg-devel qt6-qtshadertools-devel
+        cli11-devel libxcb-devel wayland-devel wayland-protocols-devel
+        pipewire-devel glib2-devel polkit-devel libdrm-devel
+        mesa-libgbm-devel mesa-libEGL-devel mesa-libGL-devel libglvnd-devel
+        jemalloc-devel libunwind-devel pam-devel vulkan-headers)
     sudo dnf install -y "${deps[@]}" || {
         say 'skipped  quickshell build dependencies are not available'
         return 0
@@ -485,12 +495,24 @@ fedora_quickshell() {
         say 'skipped  quickshell could not be cloned'
         return 0
     fi
+    # Qt looks in its own qml directory. /usr/local is not on that path,
+    # so the modules have to land beside the system Qt or the shell
+    # starts and then cannot import Quickshell.
+    local qml_dir=
+    if command -v qtpaths6 >/dev/null; then
+        qml_dir=$(qtpaths6 --query QT_INSTALL_QML 2>/dev/null || true)
+    fi
+    [[ -n $qml_dir ]] || qml_dir=/usr/lib64/qt6/qml
     if cmake -S "$src" -B "$src/build" -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_INSTALL_PREFIX=/usr/local \
+            -DINSTALL_QMLDIR="$qml_dir" \
             -DVENDOR_CPPTRACE=ON \
         && cmake --build "$src/build" \
         && sudo cmake --install "$src/build"; then
+        if command -v restorecon >/dev/null; then
+            sudo restorecon -R "$qml_dir/Quickshell" >/dev/null 2>&1 || true
+        fi
         say "built    quickshell $tag"
     else
         say 'skipped  quickshell did not build — the desk needs qs 0.3 or newer'
@@ -643,7 +665,7 @@ fedora_plugin_deps() {
     for name in cmake meson gcc gcc-c++ git cpio pkgconf pkgconf-pkg-config \
             hyprwayland-scanner hyprwayland-scanner-devel hyprland-devel \
             libuuid-devel wayland-devel wayland-protocols-devel libeis-devel \
-            mesa-libgbm-devel mesa-libEGL-devel mesa-libGL-devel mesa-libGLES-devel \
+            mesa-libgbm-devel mesa-libEGL-devel mesa-libGL-devel libglvnd-devel \
             re2-devel pugixml-devel \
             libcanberra-devel libdrm-devel libxkbcommon-devel pango-devel \
             cairo-devel pixman-devel libinput-devel systemd-devel \
